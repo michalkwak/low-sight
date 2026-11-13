@@ -21,9 +21,14 @@ class Forecast(BaseModel):
 
 
 class DrivingState(BaseModel):
-    driving: bool = False
-    p_driver: float = 0.0
-    source: Literal["vision", "forced"] = "vision"
+    driving: bool = False  # in_vehicle and role != "passenger"
+    in_vehicle: bool = False  # from the phone
+    role: Literal["driver", "passenger", "unknown"] = "unknown"  # from a glasses session
+    p_driver: float = 0.5  # smoothed seat score from the last glasses session
+    speed_kmh: float | None = None
+    car_connected: bool = False
+    phone_stale: bool = True
+    source: Literal["phone", "forced"] = "phone"
     since: datetime
 
 

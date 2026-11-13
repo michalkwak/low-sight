@@ -16,7 +16,7 @@
   $("play").onclick = () => post({ pause: false });
   $("jump").onclick = () => { post({ seek_to_crossing_min: 5 }); log("jump to −5 min before crossing"); };
 
-  const groups = { speed: (v) => ({ speed: Number(v) }), force: (v) => ({ force_driving: v }), units: (v) => ({ units: v }) };
+  const groups = { speed: (v) => ({ speed: Number(v) }), force: (v) => ({ force_driving: v }), role: (v) => ({ force_role: v }), units: (v) => ({ units: v }) };
   document.querySelectorAll("[data-group]").forEach((g) => {
     g.addEventListener("click", (e) => {
       const v = e.target.dataset.v;
@@ -37,8 +37,11 @@
       $("r-value").textContent = s.reading ? f(s.reading.mgdl) : "--";
       $("r-trend").textContent = `${s.arrow} ${s.trend_mgdl_min}`;
       $("r-fc").textContent = s.forecast ? f(s.forecast.mean[2]) : "--";
-      $("r-p").textContent = s.driving.p_driver.toFixed(2);
-      $("r-drv").textContent = `${s.driving.driving ? "YES" : "no"} (${s.driving.source})`;
+      const d = s.driving;
+      $("r-phone").textContent = d.phone_stale ? "offline" : `${d.speed_kmh == null ? "--" : Math.round(d.speed_kmh)} km/h${d.car_connected ? " · car" : ""}`;
+      $("r-car").textContent = d.in_vehicle ? "yes" : "no";
+      $("r-p").textContent = `${d.role} · ${d.p_driver.toFixed(2)}`;
+      $("r-drv").textContent = `${d.driving ? "YES" : "no"} (${d.source})`;
       $("r-alert").textContent = s.alert.level;
       $("r-time").textContent = new Date(s.now).toISOString().slice(11, 16);
       mark("speed", s.speed); mark("units", s.units);

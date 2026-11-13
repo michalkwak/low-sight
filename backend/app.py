@@ -25,7 +25,8 @@ from backend.config import settings
 from backend.forecast import baseline
 from backend.hub import Hub
 from backend.models import AppState
-from backend.vision.driving_state import DrivingStateTracker
+from backend.driving.context import DrivingContext
+from backend.driving.phone import PhoneSignal
 
 log = logging.getLogger("lowsight")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
@@ -44,7 +45,7 @@ class Runtime:
     def __init__(self) -> None:
         self.units = settings.UNITS
         self.clock = DemoClock(speed=settings.SPEED)
-        self.tracker = DrivingStateTracker()
+        self.ctx = DrivingContext()
         self.engine = EngineState()
         self.load(settings.SCENARIO)
 
@@ -53,7 +54,7 @@ class Runtime:
         self.source = load_scenario(name)
         self.clock.reset(start=ANCHOR)
         self.engine = EngineState()
-        self._last_driving = self.tracker.driving
+        self._last_driving = self.ctx.driving
         self.driving_since = self.clock.now()
 
     def compute(self) -> AppState:
@@ -64,10 +65,12 @@ class Runtime:
         slope = baseline.trend(readings, now)
         fc = baseline.forecast(readings, now)
 
-        if self.tracker.driving != self._last_driving:
-            self._last_driving = self.tracker.driving
+        wall = time.monotonic()
+        self.ctx.tick(wall)
+        if self.ctx.driving != self._last_driving:
+            self._last_driving = self.ctx.driving
             self.driving_since = now
-        driving = self.tracker.snapshot(self.driving_since)
+        driving = self.ctx.snapshot(self.driving_since, wall)
 
         self.engine, _effects = evaluate(
             self.engine, EngineInputs(reading=reading, trend=slope, forecast=fc, driving=driving), now
@@ -148,7 +151,8 @@ class Control(BaseModel):
     pause: bool | None = None
     seek_min: float | None = None
     seek_to_crossing_min: float | None = None  # e.g. 5 → jump to 5 min before first reading < LOW
-    force_driving: Literal["on", "off", "auto"] | None = None
+    force_driving: Literal["on", "off", "auto"] | None = None  # overrides the phone's in-vehicle signal
+    force_role: Literal["driver", "passenger", "auto"] | None = None  # overrides the glasses seat check
     units: Literal["mmol", "mgdl"] | None = None
     reset: bool | None = None
 
@@ -159,7 +163,7 @@ async def control(c: Control):
         rt.load(c.scenario)
     if c.reset:
         rt.load(rt.scenario)
-        rt.tracker.reset()
+        rt.ctx.reset()
     if c.speed is not None:
         rt.clock.set_speed(c.speed)
     if c.pause is True:
@@ -173,7 +177,9 @@ async def control(c: Control):
         if t is not None:
             rt.clock.seek_to(t - timedelta(minutes=c.seek_to_crossing_min))
     if c.force_driving is not None:
-        rt.tracker.force = c.force_driving
+        rt.ctx.force_vehicle = c.force_driving
+    if c.force_role is not None:
+        rt.ctx.force_role = c.force_role
     if c.units is not None:
         rt.units = c.units
     state = rt.compute()
@@ -196,19 +202,38 @@ async def ws_state(ws: WebSocket):
         await hub.disconnect(ws)
 
 
+class PhoneIn(BaseModel):
+    speed_kmh: float | None = None  # GPS speed; None if unavailable
+    car_connected: bool = False  # car Bluetooth / CarPlay / Android Auto (stand-in toggle on /phone)
+
+
+@app.post("/api/phone")
+async def phone(p: PhoneIn):
+    """Phone context signal, sent about once a second by the /phone page."""
+    rt.ctx.on_phone(PhoneSignal(speed_kmh=p.speed_kmh, car_connected=p.car_connected, wall_s=time.monotonic()))
+    return rt.ctx.snapshot(rt.driving_since, time.monotonic())
+
+
 @app.websocket("/ws/frames")
 async def ws_frames(ws: WebSocket):
-    """Camera frames (binary JPEG). M3 plugs the CLIP detector in here."""
+    """Glasses-session camera frames (binary JPEG) for the seat check.
+    M3 plugs the CLIP detector in here. Until then a text message
+    ``{"p_driver": 0.9}`` feeds a score directly (handy for tests and demos)."""
     await ws.accept()
     try:
         while True:
-            await ws.receive_bytes()
-            await ws.send_json(
-                {"p_driver": rt.tracker.ema, "driving": rt.tracker.driving, "note": "vision not wired (M3)"}
-            )
+            msg = await ws.receive()
+            if msg["type"] == "websocket.disconnect":
+                break
+            p = None
+            if msg.get("text"):
+                p = json.loads(msg["text"]).get("p_driver")
+            # elif msg.get("bytes"): p = detector.p_driver(msg["bytes"])  # M3
+            seat = rt.ctx.on_frame(float(p), time.monotonic()) if p is not None else None
+            await ws.send_json({"p_driver": rt.ctx.seat.ema, "seat": seat, "role": rt.ctx.role})
     except WebSocketDisconnect:
         pass
 
 
-for name in ("hud", "control", "camera"):
+for name in ("hud", "control", "camera", "phone"):
     app.mount(f"/{name}", StaticFiles(directory=settings.WEB_DIR / name, html=True), name=name)

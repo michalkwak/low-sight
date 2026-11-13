@@ -56,8 +56,10 @@
     }
     $("unit").textContent = unitLabel(u);
 
-    const driving = state.driving && state.driving.driving;
+    const d = state.driving || {};
+    const driving = !!d.driving;
     $("driving").classList.toggle("hidden", !driving);
+    $("driving").textContent = d.role === "driver" ? "● Driver" : "● In car";
     // No sparkline while driving — minimal visual load.
     $("spark").classList.toggle("hidden", !!driving);
     if (!driving) drawSpark();

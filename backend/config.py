@@ -20,12 +20,19 @@ class Settings(BaseSettings):
     LOW_SOON_HORIZON: int = 30
     IMMINENT_HORIZON: int = 10
 
-    # Driving-state smoothing
+    # Seat confirmation (glasses camera, during a <=3 min user-started session)
     EMA_ALPHA: float = 0.3
-    ENTER_P: float = 0.70
-    ENTER_S: float = 3.0
-    EXIT_P: float = 0.30
-    EXIT_S: float = 15.0
+    ENTER_P: float = 0.70  # EMA above this → driver
+    EXIT_P: float = 0.30  # EMA below this → passenger
+    ENTER_S: float = 3.0  # EMA must hold past a threshold this long
+    SESSION_MAX_S: float = 180.0  # platform limit on glasses sessions
+
+    # In-vehicle detection (phone), wall-clock seconds
+    PHONE_SPEED_ON_KMH: float = 15.0
+    PHONE_ON_S: float = 10.0
+    PHONE_SPEED_OFF_KMH: float = 5.0
+    TRIP_END_S: float = 300.0  # stopped + disconnected (or phone silent) this long → trip over
+    PHONE_STALE_S: float = 30.0
 
     SCENARIO: str = "falling_while_driving"
     SCENARIO_DIR: Path = ROOT / "data" / "scenarios"

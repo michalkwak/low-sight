@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LowSight Phone</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: system-ui, sans-serif; background: #111; color: #eee; margin: 0; padding: 16px; max-width: 520px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p.sub { color: #999; margin: 0 0 16px; font-size: 14px; }
+    button { font-size: 18px; padding: 14px 16px; border-radius: 10px; border: 1px solid #444; background: #222; color: #eee; width: 100%; margin-bottom: 10px; }
+    button.on { background: #3ee6c1; border-color: #3ee6c1; color: #000; }
+    #start { background: #3ee6c1; color: #000; border: none; font-weight: 700; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+    .card { background: #1b1b1b; border: 1px solid #333; border-radius: 10px; padding: 10px; font-size: 14px; color: #aaa; }
+    .card b { display: block; font-size: 22px; color: #eee; margin-top: 4px; }
+    label { display: block; margin: 8px 0; color: #aaa; }
+    input[type=range] { width: 100%; }
+    #alert { border: 3px solid #ffb020; color: #ffb020; border-radius: 12px; padding: 12px; font-size: 20px; font-weight: 700; margin: 10px 0; }
+    #alert.PULL_OVER { border-color: #ff5a36; color: #ff5a36; }
+    #alert.RECOVERING { border-color: #3ee6c1; color: #3ee6c1; }
+    .hidden { display: none; }
+    #log { font: 12px ui-monospace, monospace; color: #888; white-space: pre-wrap; max-height: 140px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>LowSight — phone</h1>
+  <p class="sub">Detects the trip, speaks alerts through the glasses (Bluetooth audio) and sends notifications. Keep this page open.</p>
+
+  <button id="start">Start</button>
+
+  <button id="car">Connected to car: off</button>
+  <label>Simulated speed: <span id="simv">GPS</span>
+    <input id="sim" type="range" min="-1" max="120" step="1" value="-1">
+  </label>
+
+  <div id="alert" class="hidden"></div>
+
+  <div class="grid">
+    <div class="card">Glucose<b id="r-value">--</b></div>
+    <div class="card">Speed<b id="r-speed">--</b></div>
+    <div class="card">In car<b id="r-car">--</b></div>
+    <div class="card">Role<b id="r-role">--</b></div>
+  </div>
+  <div id="log"></div>
+  <script src="phone.js"></script>
+</body>
+</html>
