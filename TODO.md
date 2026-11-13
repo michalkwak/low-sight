@@ -1,0 +1,123 @@
+# LowSight: to-do list
+
+Tasks follow the milestones in [LOWSIGHT_BUILD_PLAN.md §9](LOWSIGHT_BUILD_PLAN.md#9-milestones-build-in-this-order-each-ends-runnable). Each milestone should end with something that runs.
+Put your name in brackets after a task when you take it, e.g. `[Anna]`.
+
+## ✅ Done
+
+- [x] Repo skeleton, config, data models, demo clock, `/api/health`, static pages (M0)
+- [x] Four synthetic glucose scenarios, replay source, baseline forecaster, trend arrows (M1)
+- [x] Live state over `/ws/state`; ambient HUD with value, arrow, sparkline and forecast band (M1)
+- [x] Phone trip detection (speed + car connection) and driver/passenger context
+- [x] Phone page (`/phone`): sends trip signals, speaks alerts, shows notifications
+- [x] Control panel: scenario, clock, jump to crossing, in-car and seat overrides, units
+- [x] 17 tests passing (forecast, trip detection, seat check, app smoke tests)
+
+---
+
+## 1. Do first: check the setup works
+
+- [ ] Install `cloudflared` and open the HUD over the tunnel in **DisplayGlasses.dev**. Confirm it loads in the iframe, shows a moving value, and that ←/→ and Enter work.
+- [ ] Open `/phone` on a real phone over the tunnel. Check GPS speed, the wake lock, speech, and that notifications appear.
+- [ ] **Check whether a browser notification from `/phone` shows on the glasses.** Meta confirmed this for phone app notifications, but not for browser pages. If it doesn't, rely on speech plus the HUD, and say so in the pitch.
+- [ ] Check that speech from the phone page plays through the glasses speakers.
+
+## 2. M2: alert engine (next up)
+
+- [ ] `backend/alerts/engine.py`: pure function `evaluate(prev_state, inputs, now) -> (alert, effects)` with all five levels:
+  - [ ] **PULL_OVER**: when driving and the reading is below 70, the +10 min forecast is below 70, or the reading is below 90 and falling at −2 mg/dL/min or faster
+  - [ ] **LOW_SOON**: when driving and the +30 min forecast is below 70 while the reading is still 70 or above; "Low in ~N min", with N rounded to 5 min
+  - [ ] **PRE_DRIVE**: when low or dropping, and the seat check confirms the driver or a trip starts; escalate to PULL_OVER if it persists 60 s into driving
+  - [ ] **RECOVERING**: after an acknowledged PULL_OVER while rising; 15-min countdown; clears at 90 or above with a flat or rising trend
+  - [ ] **NONE** otherwise
+- [ ] Dedupe: speak each level once per episode. An episode ends after 10 demo-minutes without the condition.
+- [ ] Hysteresis: only drop to a lower level after 2 consecutive readings without the condition.
+- [ ] Alert `id` changes for each new alert, so the phone speaks and notifies each one once.
+- [ ] Wire acknowledgement: Enter on the HUD (`{"type":"ack"}`) and a control-panel button set `acked = True`.
+- [ ] `tests/test_alert_engine.py`:
+  - [ ] `falling_while_driving` → LOW_SOON, then PULL_OVER, at the expected times (± one reading)
+  - [ ] `stable_drive` → zero alerts
+  - [ ] Not in a car, or a confirmed passenger → never LOW_SOON or PULL_OVER
+  - [ ] Ack silences repeats; noisy readings around 70 don't flap
+- [ ] **Done when:** forcing in-car on `falling_while_driving` gives LOW_SOON, then PULL_OVER, spoken by the phone.
+
+## 3. M3: seat check (vision)
+
+- [ ] Ask the team before installing `torch`, `open_clip_torch` and `pillow` (large downloads); then uncomment them in `requirements.txt`.
+- [ ] `backend/vision/clip_detector.py`: CLIP ViT-B-32 zero-shot with driver, passenger and other prompt groups → `p_driver`.
+  - [ ] Downscale to 224 px; skip a frame if the previous one is still processing (never queue).
+- [ ] Wire the detector into `/ws/frames` for binary JPEG frames (the slot is marked in `backend/app.py`).
+- [ ] `web/camera/`: build the page (currently a placeholder).
+  - [ ] Mode A: webcam (`getUserMedia`)
+  - [ ] Mode B: play a POV video file
+  - [ ] **"Start seat check"** button: sends frames for at most 3 min, stops early once the seat is decided
+  - [ ] Overlay showing `p_driver` and the seat result
+- [ ] HUD: show "Driver seat ✓" / "Passenger" when the check decides.
+- [ ] Record labelled footage in a parked car: driver's seat, passenger seat, plus indoor clips.
+- [ ] `scripts/eval_vision.py`: accuracy and confusion matrix on ~50 labelled frames. **This number goes on a pitch slide.**
+- [ ] **Done when:** pointing at a steering wheel (or the POV video) confirms "driver" within about 3–5 s, and passenger or indoor frames don't.
+
+## 4. M4: full hands-free flow
+
+- [ ] PRE_DRIVE through both paths: the seat check while parked, and a trip starting without a check.
+- [ ] RECOVERING countdown on the HUD (mm:ss on the demo clock).
+- [ ] `scripts/make_audio.py`: generate mp3s into `web/hud/audio/` (`low_soon`, `pull_over`, `pre_drive`, `recovering`).
+- [ ] HUD audio: don't double up with the phone (skip if the phone already spoke this alert `id`).
+- [ ] Control panel "Stage audio" toggle: speaks alerts through the laptop speakers.
+- [ ] Repeat the PULL_OVER audio once if it's unacknowledged for 2 demo-minutes.
+- [ ] **Done when:** the full scenario runs with no one touching anything: the phone detects the trip and speaks the alerts.
+
+## 5. M5: polish and numbers
+
+- [ ] HUD legibility in the simulator at Medium size over the **brightest** background; fix contrast and sizes.
+- [ ] HUD shows useful state within 1 s of opening (sessions are short).
+- [ ] Stale-data states: "No CGM data", "x min ago", "Reconnecting…"; test by killing the backend.
+- [ ] HUD about view: "Decision support, not medical advice" disclaimer (already there; check it reads well).
+- [ ] Cap the forecast at 40 mg/dL so the band doesn't dip to unrealistic values on steep drops (open decision from earlier).
+- [ ] If the data terms allow: forecaster error on CITY data (`backend/forecast/evaluate.py`: RMSE/MAE at +15/+30 min). Replace the fixed error band with measured quantiles.
+- [ ] **Done when:** screenshots look clean on bright and dark scenes, and the accuracy and error numbers exist.
+
+## 6. M7: submission and demo (from h40)
+
+- [ ] Freeze features.
+- [ ] Final README: run steps, screenshots, architecture.
+- [ ] Pitch deck: problem → demo → why first-person view → numbers → path to production → disclaimer.
+- [ ] Use the one-liner and description from the submission draft; add the real vision accuracy and forecast error.
+- [ ] Record a backup demo video in DisplayGlasses.dev (Point of View mode, driving background).
+- [ ] Rehearse the 2-min demo script (plan §11) until it runs **3 times in a row** without touching code.
+- [ ] Check every judging criterion in plan §1.1 against the demo and slides.
+
+---
+
+## Further implementations
+
+### During the hackathon, if time allows (plan §8)
+
+- [ ] **Caregiver escalation:** an unacknowledged PULL_OVER after 2 min pushes to a `/caregiver` page (or SMS via a Twilio trial) with value, trend and "driving". Use a mock location.
+- [ ] **Better forecaster:** ridge regression on CITY data (last 6 values, deltas, time of day), split by patient. Switch only if it beats the baseline; put the comparison on a slide.
+- [ ] **Real glucose data:** a Nightscout URL or the Dexcom developer sandbox as an alternative glucose source.
+- [ ] **`docs/real-hardware.md`:** the path to production (native phone app + DAT seat check), so judges see it's buildable.
+
+### After the hackathon: toward a real product
+
+- [ ] **Native phone app (Android first):**
+  - Android Activity Recognition (`IN_VEHICLE`) / iOS Core Motion for trips
+  - car Bluetooth / Android Auto / CarPlay connection
+  - background service, so it keeps working with the screen locked (fixes the browser-tab limits)
+  - native push notifications to the glasses display
+- [ ] **DAT seat check:** stream glasses-camera frames from the native app during the session the wearer opens.
+- [ ] **On-device vision:** run a small seat classifier on the phone instead of the server (privacy, works offline, no backend needed).
+- [ ] **Direct CGM integration:** official partner APIs (e.g. Dexcom, Abbott) or HealthKit / Health Connect, instead of replays.
+- [ ] **Personalised forecasting:** adapt the forecast to each user's history; add insulin-on-board and carbs if the user logs them.
+- [ ] **Smarter driver detection without a seat check:** learn from habits (e.g. which car, who usually drives) so fewer passenger trips trigger alerts.
+- [ ] **Stop suggestions:** "Petrol station in 2 km" with LOW_SOON (mapping integration; currently out of scope).
+- [ ] **Trip log:** a history of lows and alerts during drives, to share with a diabetes care team (needs accounts and storage; currently out of scope).
+- [ ] **Localisation:** spoken alerts and HUD text in Finnish, Swedish and other languages; mmol/L vs mg/dL per region.
+- [ ] **Accessibility:** adjustable text size and alert volume, colour-blind-safe alert colours, haptic alerts via the Neural Band if the platform allows it.
+- [ ] **Clinical and regulatory path:** validate with people with T1D and clinicians, and check medical-device rules (EU MDR) before any claims beyond decision support.
+
+### Never in scope
+
+- Insulin dosing advice
+- Carb estimation
+- Anything that requires interaction while driving
