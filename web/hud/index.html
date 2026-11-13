@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=600, height=600, initial-scale=1">
+  <title>LowSight</title>
+  <link rel="stylesheet" href="hud.css">
+</head>
+<body>
+  <main id="hud" tabindex="0" aria-live="polite">
+    <!-- View 0: Glucose -->
+    <section class="view" data-view="glucose">
+      <div id="banner" class="banner hidden" role="alert">
+        <div id="banner-title" class="banner-title"></div>
+        <div id="banner-line" class="banner-line"></div>
+      </div>
+      <div class="readout">
+        <div class="value-row">
+          <span id="value" class="value">--</span>
+          <span id="arrow" class="arrow"></span>
+        </div>
+        <div class="meta-row">
+          <span id="unit" class="unit">mmol/L</span>
+          <span id="age" class="age"></span>
+        </div>
+        <svg id="spark" class="spark" viewBox="0 0 300 110" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div id="driving" class="badge hidden">● Driving</div>
+      </div>
+    </section>
+
+    <!-- View 1: Forecast detail -->
+    <section class="view hidden" data-view="forecast">
+      <div class="view-title">Forecast</div>
+      <div id="fc-rows" class="fc-rows"></div>
+    </section>
+
+    <!-- View 2: About -->
+    <section class="view hidden" data-view="about">
+      <div class="view-title">LowSight</div>
+      <p class="about">Low-glucose alerts while driving.</p>
+      <p class="about dim">Decision support only. Not medical advice. Never suggests insulin doses.</p>
+    </section>
+
+    <div id="status" class="status hidden"></div>
+    <nav class="dots" aria-hidden="true"><i></i><i></i><i></i></nav>
+  </main>
+  <audio id="audio" preload="auto"></audio>
+  <script src="hud.js"></script>
+</body>
+</html>

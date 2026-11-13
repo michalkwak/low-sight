@@ -1,0 +1,15 @@
+# Core (M0–M2)
+fastapi
+uvicorn[standard]
+numpy
+pandas
+pydantic
+pydantic-settings
+pytest
+httpx
+# Vision (M3) — heavy, install when needed:
+# torch
+# open_clip_torch
+# pillow
+# Optional forecaster (stretch):
+# scikit-learn
