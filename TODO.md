@@ -73,7 +73,7 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 
 ## 5. M5: polish and numbers
 
-- [ ] Experimental React HUD: source and 13 tests exist under `web/hud-app/`, but it is not served at `/hud/`. Use Node 24.15+ (`.nvmrc`) for `npm ci`, `npm test` and `npm run build`; this checkout's Node 20.11 cannot run its locked toolchain.
+- [x] Experimental React HUD toolchain: under Node 24.15, all 13 Vitest tests, the TypeScript check and production build pass. The HUD remains experimental and is not served at `/hud/`; Node 20.11 cannot run its locked toolchain.
 
 - [ ] HUD legibility in the simulator at Medium size over the **brightest** background; fix contrast and sizes.
 - [ ] HUD shows useful state within 1 s of opening (sessions are short). The first load is ~15 KB in 4 requests (Meta's budget: under 300 KB and 15 requests), and the server pushes state on connect; time it on the glasses.

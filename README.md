@@ -27,7 +27,7 @@ Full spec: [LOWSIGHT_BUILD_PLAN.md](LOWSIGHT_BUILD_PLAN.md). Task list: [TODO.md
 | M5: polish and numbers | partly: forecast floor, stale states, Meta metadata and fluid layout done; legibility, device checks and numbers need people and hardware |
 | M6–M7 | not started |
 
-The experimental React HUD in `web/hud-app/` has source and tests, but it is not the app served at `/hud/`; the plain HUD remains the active implementation. Its locked JavaScript toolchain requires Node 24.15 or newer (see `web/hud-app/.nvmrc`).
+The experimental React HUD in `web/hud-app/` has source and tests, but it is not the app served at `/hud/`; the plain HUD remains the active implementation. Its locked JavaScript toolchain requires Node 24.15 or newer (see `web/hud-app/.nvmrc`). Under Node 24.15, all 13 Vitest tests, the TypeScript check, and the production build pass.
 
 ## Running it
 
