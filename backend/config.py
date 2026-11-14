@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     LOW_SOON_HORIZON: int = 30
     IMMINENT_HORIZON: int = 10
 
+    # Alert behaviour (demo-clock minutes/seconds; the engine runs on demo time)
+    RISE_MIN: float = 1.0  # mg/dL/min: "rising" after treatment (the ↗ arrow threshold)
+    RECOVER_WAIT_MIN: float = 15.0  # RECOVERING countdown: wait, then recheck
+    EPISODE_GAP_MIN: float = 10.0  # condition false this long → episode over, may speak again
+    HYSTERESIS_READINGS: int = 2  # consecutive readings without the condition before dropping a level
+    PRE_DRIVE_ESCALATE_S: float = 60.0  # PRE_DRIVE still true after this much driving → PULL_OVER
+    REPEAT_PULL_OVER_MIN: float = 2.0  # unacknowledged PULL_OVER: repeat the audio once
+    STALE_MIN: float = 15.0  # a reading older than this is "no data" (no new alerts from it)
+
     # Seat confirmation (glasses camera, during a <=3 min user-started session)
     EMA_ALPHA: float = 0.3
     ENTER_P: float = 0.70  # EMA above this → driver

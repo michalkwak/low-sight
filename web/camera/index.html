@@ -5,11 +5,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LowSight Camera</title>
   <style>
-    body { font-family: system-ui, sans-serif; background: #111; color: #eee; margin: 0; padding: 16px; }
+    :root { color-scheme: dark; }
+    body { font-family: system-ui, sans-serif; background: #111; color: #eee; margin: 0; padding: 16px; max-width: 720px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p.sub { color: #999; margin: 0 0 14px; font-size: 14px; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+    button, label.file { font-size: 16px; padding: 12px 14px; border-radius: 10px; border: 1px solid #444; background: #222; color: #eee; cursor: pointer; }
+    #start { background: #3ee6c1; color: #000; border: none; font-weight: 700; }
+    label.file input { display: none; }
+    .stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; aspect-ratio: 4 / 3; }
+    video { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .overlay { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 12px; background: rgba(0, 0, 0, 0.6); font-size: 15px; }
+    .bar { height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin: 6px 0; position: relative; }
+    .bar i { position: absolute; top: 0; bottom: 0; left: 0; background: #3ee6c1; width: 50%; }
+    .bar .t { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #fff; opacity: .6; }
+    #result { font-size: 22px; font-weight: 700; }
+    #result.driver { color: #3ee6c1; }
+    #result.passenger { color: #ffb020; }
+    #status { color: #aaa; min-height: 1.4em; margin: 10px 0; }
+    details { color: #aaa; margin-top: 12px; }
   </style>
 </head>
 <body>
-  <h1>LowSight — camera source</h1>
-  <p>Placeholder. Webcam (getUserMedia) and video-file modes that stream JPEG frames to <code>/ws/frames</code> land in M3.</p>
+  <h1>LowSight — seat check</h1>
+  <p class="sub">Stands in for the glasses camera during a session the wearer opens: frames go to the backend for
+    about 3 s to 3 min, and LowSight decides whether you're in the driver's or the passenger's seat.</p>
+
+  <div class="row">
+    <button id="cam">Mode A: camera</button>
+    <label class="file">Mode B: POV video file<input id="file" type="file" accept="video/*"></label>
+  </div>
+
+  <div class="stage">
+    <video id="video" playsinline muted autoplay></video>
+    <div class="overlay">
+      <div><span id="result">Not checked</span> <span id="timer"></span></div>
+      <div class="bar" title="smoothed seat score: 1 = driver's seat, 0 = passenger seat, 0.5 = can't tell"><i id="pbar"></i><span class="t" style="left:30%"></span><span class="t" style="left:70%"></span></div>
+      <div>seat score smoothed <b id="pema">--</b> · this frame <b id="pframe">--</b> (1 driver · 0 passenger · 0.5 not a car) · skipped <span id="dropped">0</span></div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:12px">
+    <button id="start">Start seat check</button>
+    <button id="stop">Stop</button>
+  </div>
+  <div id="status"></div>
+
+  <details>
+    <summary>Test without the vision model</summary>
+    <p>Sends steady per-frame scores instead of images, through the same smoothing and 3 s hold.</p>
+    <div class="row">
+      <button id="sim-driver">Simulate driver's seat</button>
+      <button id="sim-passenger">Simulate passenger seat</button>
+    </div>
+  </details>
+  <script src="camera.js"></script>
 </body>
 </html>

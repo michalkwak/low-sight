@@ -12,11 +12,24 @@ DAMPING = 0.85  # slope multiplier per 10 min
 FIT_WINDOW_MIN = 20
 TREND_WINDOW_MIN = 15
 MIN_POINTS = 3
+FLOOR_MGDL, CEIL_MGDL = 40.0, 400.0  # CGM reporting range: steep drops can't forecast below 40
+
+
+def _clamp(v: float) -> float:
+    return round(min(max(v, FLOOR_MGDL), CEIL_MGDL), 1)
 
 
 def _recent(history: list[CGMReading], now: datetime, window_min: float) -> list[CGMReading]:
     cutoff = now - timedelta(minutes=window_min, seconds=1)
     return [r for r in history if cutoff <= r.t <= now]
+
+
+def _anchored(history: list[CGMReading], now: datetime, window_min: float) -> list[CGMReading]:
+    """The window ending at the latest reading (not at ``now``), so a fit uses the same
+    points (e.g. 5 for 20 min) until the next reading arrives instead of shifting between
+    readings. Callers check for a sensor gap against ``now`` first."""
+    past = [r for r in history if r.t <= now]
+    return _recent(past, past[-1].t, window_min) if past else []
 
 
 def _weighted_slope(pts: list[CGMReading], ref: datetime) -> tuple[float, float]:
@@ -29,9 +42,9 @@ def _weighted_slope(pts: list[CGMReading], ref: datetime) -> tuple[float, float]
 
 
 def trend(history: list[CGMReading], now: datetime) -> float | None:
-    pts = _recent(history, now, TREND_WINDOW_MIN)
-    if len(pts) < 2:
+    if len(_recent(history, now, TREND_WINDOW_MIN)) < 2:
         return None
+    pts = _anchored(history, now, TREND_WINDOW_MIN)
     slope, _ = _weighted_slope(pts, pts[-1].t)
     return slope
 
@@ -55,9 +68,9 @@ def arrow(slope: float | None) -> str:
 
 
 def forecast(history: list[CGMReading], now: datetime, band: list[float] | None = None) -> Forecast | None:
-    pts = _recent(history, now, FIT_WINDOW_MIN)
-    if len(pts) < MIN_POINTS:
+    if len(_recent(history, now, FIT_WINDOW_MIN)) < MIN_POINTS:
         return None  # sensor gap → HUD shows "No CGM data"
+    pts = _anchored(history, now, FIT_WINDOW_MIN)
     t0 = pts[-1].t
     slope, intercept = _weighted_slope(pts, t0)
     band = band or DEFAULT_BAND
@@ -69,7 +82,7 @@ def forecast(history: list[CGMReading], now: datetime, band: list[float] | None 
         for _ in range(h // 10):
             value += s * 10
             s *= DAMPING
-        mean.append(round(value, 1))
-        lo.append(round(value - b, 1))
-        hi.append(round(value + b, 1))
+        mean.append(_clamp(value))
+        lo.append(_clamp(value - b))
+        hi.append(_clamp(value + b))
     return Forecast(t0=t0, horizons_min=list(HORIZONS), mean=mean, lo=lo, hi=hi)

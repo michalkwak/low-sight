@@ -9,6 +9,8 @@
   let started = false;
   let lastAlertId = null;
   let swReg = null;
+  let ws = null;
+  let speakingLevel = null;
 
   // ---- signals ----
   $("car").onclick = () => {
@@ -57,10 +59,19 @@
   };
 
   // ---- alerts ----
-  function speak(text) {
-    if (!text || !("speechSynthesis" in window)) return;
-    speechSynthesis.cancel();
-    speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  // Speech plays through the glasses speakers. A different level replaces what is being
+  // said; a repeat of the same level queues behind it instead of cutting it off.
+  function speak(a) {
+    if (!a.speak || !("speechSynthesis" in window)) return;
+    if (speakingLevel !== a.level) speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(a.speak);
+    u.onstart = () => {
+      speakingLevel = a.level;
+      // Tell the backend, so the HUD (if open) doesn't say it a second time.
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: "spoken", id: a.id }));
+    };
+    u.onend = () => { if (!speechSynthesis.speaking) speakingLevel = null; };
+    speechSynthesis.speak(u);
   }
   function notify(a, valueText) {
     if (!("Notification" in window) || Notification.permission !== "granted") return;
@@ -70,7 +81,7 @@
   }
 
   function connect() {
-    const ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/state`);
+    ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/state`);
     ws.onmessage = (e) => {
       const s = JSON.parse(e.data);
       const f = (v) => (s.units === "mmol" ? (v / 18).toFixed(1) : Math.round(v));
@@ -89,8 +100,9 @@
       }
       if (a.level !== "NONE" && a.id && a.id !== lastAlertId) {
         lastAlertId = a.id;
-        log(`alert ${a.level}`);
-        if (started) { speak(a.speak); notify(a, valueText); }
+        // speak === null: already said this episode (dedupe) → update the page silently.
+        log(`alert ${a.level}${a.speak ? "" : " (silent)"}`);
+        if (started && a.speak) { speak(a); notify(a, valueText); }
       }
     };
     ws.onclose = () => setTimeout(connect, 1000);

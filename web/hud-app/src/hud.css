@@ -1,0 +1,104 @@
+/* LowSight HUD on the Wearables UI Toolkit.
+   Additive display: black = transparent. Bright, thin, high-contrast only; outline banners.
+   600×600 is the validation target, not a fixed canvas. Type uses the toolkit's text styles
+   and scales with its font scale; the plan's larger sizes for the glucose value and alert
+   title are multiples of the toolkit's scaled sizes. */
+:root {
+  /* Alert colours from the plan: brighter than the toolkit's persistent-warning/negative
+     tokens (#c58600 / #ff5668), and brightness is what makes a warning visible on glass. */
+  --ls-amber: #ffb020;
+  --ls-red: #ff5a36;
+  --ls-cyan: #3ee6c1;
+  --ls-dim: var(--uit-color-text-secondary, #cfd3d9);
+  --ls-grey: #8a8a8a;
+  --ls-pad: 28px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background-color: var(--uit-color-background-window, #000);
+}
+
+.hud {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  color: var(--uit-color-text-primary, #fff);
+}
+
+.view {
+  position: absolute;
+  inset: 0;
+  padding: var(--ls-pad);
+  box-sizing: border-box;
+}
+
+/* Glucose readout: top right */
+.readout {
+  position: absolute;
+  top: var(--ls-pad);
+  right: var(--ls-pad);
+  width: min(320px, calc(100% - 2 * var(--ls-pad)));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+.value-row { display: flex; align-items: baseline; gap: 12px; }
+.hud .value {
+  font-size: calc(var(--uit-scaled-font-size-80, 80px) * 1.5); /* ~120 px */
+  line-height: 1;
+  letter-spacing: -2px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.hud .arrow { font-size: calc(var(--uit-scaled-font-size-64, 64px) * 1.3); line-height: 1; } /* ~84 px */
+.meta-row { display: flex; gap: 14px; margin-top: 6px; }
+.hud .stale .value, .hud .stale .arrow, .offline .value, .offline .arrow { color: var(--ls-grey); }
+
+.spark { width: 100%; height: 110px; margin-top: 14px; }
+.spark .line { fill: none; stroke: var(--ls-dim); stroke-width: 2; vector-effect: non-scaling-stroke; opacity: 0.8; }
+.spark .fc { fill: none; stroke: #fff; stroke-width: 2; stroke-dasharray: 4 5; vector-effect: non-scaling-stroke; }
+.spark .band { fill: rgba(255, 255, 255, 0.12); stroke: none; }
+.spark .low { stroke: var(--ls-red); stroke-width: 1; stroke-dasharray: 2 6; opacity: 0.7; vector-effect: non-scaling-stroke; }
+
+.badge { margin-top: 10px; }
+.hud .seat { margin-top: 8px; color: var(--ls-cyan); }
+.hud .seat.muted { color: var(--ls-dim); }
+
+/* Alert banner: outline only, no big fills */
+.banner {
+  position: absolute;
+  left: var(--ls-pad);
+  right: var(--ls-pad);
+  bottom: 56px;
+  border: 4px solid var(--ls-amber);
+  border-radius: 18px;
+  padding: 16px 22px;
+  color: var(--ls-amber);
+}
+.hud .banner-title {
+  font-size: calc(var(--uit-scaled-font-size-40, 40px) * 1.4); /* ~56 px */
+  line-height: 1.05;
+  color: inherit;
+}
+.hud .banner-line { margin-top: 8px; color: inherit; font-variant-numeric: tabular-nums; }
+.banner-hint { margin-top: 12px; }
+.banner.PULL_OVER { border-color: var(--ls-red); color: var(--ls-red); animation: ls-pulse 1.2s ease-in-out infinite; }
+.banner.RECOVERING { border-color: var(--ls-cyan); color: var(--ls-cyan); }
+.banner.acked { animation: none; }
+@keyframes ls-pulse { 50% { border-color: rgba(255, 90, 54, 0.35); } }
+@media (prefers-reduced-motion: reduce) { .banner.PULL_OVER { animation: none; } }
+
+/* Other views */
+.hud .view-title { margin: 0 0 24px; }
+.fc-rows { display: grid; gap: 14px; }
+.fc-row { display: grid; grid-template-columns: 6.5em auto 1fr; align-items: baseline; gap: 20px; }
+.hud .about { margin: 0 0 18px; }
+
+.hud .status { position: absolute; left: var(--ls-pad); top: var(--ls-pad); color: var(--ls-grey); }
+.dots { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); }

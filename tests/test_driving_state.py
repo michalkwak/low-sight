@@ -1,6 +1,9 @@
+import pytest
+
 from backend.config import settings
 from backend.driving.context import DrivingContext
 from backend.driving.phone import PhoneSignal, VehicleTracker
+from backend.vision.clip_detector import seat_score
 from backend.vision.driving_state import SeatTracker
 
 
@@ -27,6 +30,17 @@ def test_steady_driver_frames_confirm_within_session():
 
 def test_passenger_frames_confirm_passenger():
     assert feed_seat(SeatTracker(), 0.05, 0, 6) == "passenger"
+
+
+def test_indoor_frames_never_confirm_passenger():
+    # A kitchen has p(driver) ≈ 0, but it says nothing about the seat. Deciding "passenger"
+    # from it would silence driving alerts on a trip that starts within TRIP_END_S.
+    kitchen = {"driver": 0.0, "passenger": 0.0, "other": 1.0}
+    assert seat_score(kitchen) == 0.5
+    assert feed_seat(SeatTracker(), seat_score(kitchen), 0, 60) is None
+    # In a car, the score is p(driver), so real seat views still decide both ways.
+    assert seat_score({"driver": 0.9, "passenger": 0.1, "other": 0.0}) == pytest.approx(0.9)
+    assert seat_score({"driver": 0.05, "passenger": 0.95, "other": 0.0}) == pytest.approx(0.05)
 
 
 # ---- phone trip detection ----

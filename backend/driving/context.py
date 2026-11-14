@@ -37,12 +37,24 @@ class DrivingContext:
         self._role: Role = "unknown"
         self._role_at: float | None = None
         self._was_in_vehicle = False
+        self._frame_at: float | None = None
 
     # ---- inputs ----
     def on_phone(self, sig: PhoneSignal) -> None:
         self.vehicle.update(sig)
 
+    def start_seat_check(self) -> None:
+        """A new glasses session (camera connection): smooth its frames from scratch, so
+        frames from an earlier session can't help or hinder this decision. The role
+        already decided for this trip stays until the new session decides."""
+        self.seat.reset()
+        self._frame_at = None
+
+    def end_seat_check(self) -> None:
+        self._frame_at = None
+
     def on_frame(self, p_driver: float, wall_s: float) -> Seat | None:
+        self._frame_at = wall_s
         seat = self.seat.update(p_driver, wall_s)
         if seat is not None:
             self._role, self._role_at = seat, wall_s
@@ -92,4 +104,5 @@ class DrivingContext:
             phone_stale=self.vehicle.stale(wall_s),
             source="forced" if forced else "phone",
             since=since,
+            seat_checking=self._frame_at is not None and wall_s - self._frame_at < 3.0,
         )

@@ -2,12 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=600, height=600, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="LowSight: eyes-up low-glucose alerts while driving. Decision support, not medical advice.">
+  <meta name="mrbd-web-app-capable" content="yes">
+  <meta name="application-name" content="LowSight">
   <title>LowSight</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="hud.css">
 </head>
 <body>
-  <main id="hud" tabindex="0" aria-live="polite">
+  <main id="hud" tabindex="0" aria-live="polite" aria-label="LowSight">
     <!-- View 0: Glucose -->
     <section class="view" data-view="glucose">
       <div id="banner" class="banner hidden" role="alert">
@@ -24,7 +28,8 @@
           <span id="age" class="age"></span>
         </div>
         <svg id="spark" class="spark" viewBox="0 0 300 110" preserveAspectRatio="none" aria-hidden="true"></svg>
-        <div id="driving" class="badge hidden">● Driving</div>
+        <div id="badge" class="badge hidden"></div>
+        <div id="seat" class="seat hidden"></div>
       </div>
     </section>
 
@@ -39,12 +44,13 @@
       <div class="view-title">LowSight</div>
       <p class="about">Low-glucose alerts while driving.</p>
       <p class="about dim">Decision support only. Not medical advice. Never suggests insulin doses.</p>
+      <p class="about dim small">Select: acknowledge alert<br>◀ ▶ switch views</p>
     </section>
 
-    <div id="status" class="status hidden"></div>
+    <div id="status" class="status">Connecting…</div>
     <nav class="dots" aria-hidden="true"><i></i><i></i><i></i></nav>
   </main>
-  <audio id="audio" preload="auto"></audio>
+  <audio id="audio" preload="none"></audio>
   <script src="hud.js"></script>
 </body>
 </html>

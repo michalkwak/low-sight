@@ -30,15 +30,19 @@ class DrivingState(BaseModel):
     phone_stale: bool = True
     source: Literal["phone", "forced"] = "phone"
     since: datetime
+    seat_checking: bool = False  # camera frames are arriving (a seat check is running)
 
 
 class Alert(BaseModel):
     level: AlertLevel = "NONE"
     title: str = ""
     line: str = ""
-    speak: str | None = None
+    speak: str | None = None  # None → deliver silently (already spoken this episode)
     acked: bool = False
-    id: str = ""
+    id: str = ""  # new for every alert (and for the PULL_OVER repeat): speak/notify once per id
+    since: datetime | None = None  # demo time the alert was raised
+    until: datetime | None = None  # RECOVERING: end of the wait countdown (demo time)
+    spoken: bool = False  # a phone (or stage audio) reported speaking this id; the HUD then stays quiet
 
 
 class AppState(BaseModel):
@@ -54,3 +58,5 @@ class AppState(BaseModel):
     scenario: str = ""
     speed: float = 1.0
     paused: bool = False
+    force_driving: Literal["on", "off", "auto"] = "auto"  # control-panel overrides, shown on /control
+    force_role: Literal["driver", "passenger", "auto"] = "auto"

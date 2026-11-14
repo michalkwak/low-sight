@@ -15,6 +15,11 @@
     .card { background: #1b1b1b; border: 1px solid #333; border-radius: 10px; padding: 10px; }
     .card b { display: block; font-size: 26px; margin-top: 4px; }
     #log { background: #000; border: 1px solid #333; border-radius: 8px; padding: 8px; height: 180px; overflow: auto; font: 13px ui-monospace, monospace; }
+    .banner { border: 3px solid #444; color: #888; border-radius: 10px; padding: 10px 14px; font-size: 20px; font-weight: 700; }
+    .banner.LOW_SOON, .banner.PRE_DRIVE { border-color: #ffb020; color: #ffb020; }
+    .banner.PULL_OVER { border-color: #ff5a36; color: #ff5a36; }
+    .banner.RECOVERING { border-color: #3ee6c1; color: #3ee6c1; }
+    .banner small { display: block; font-size: 14px; font-weight: 400; color: #aaa; margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -23,6 +28,7 @@
   <div class="row"><label>Clock</label>
     <button id="pause">Pause</button><button id="play">Play</button>
     <span data-group="speed"><button data-v="1">1×</button><button data-v="10">10×</button><button data-v="30">30×</button><button data-v="60">60×</button></span>
+    <button id="jump20">Jump to −20 min before crossing</button>
     <button id="jump">Jump to −5 min before crossing</button>
   </div>
   <div class="row"><label>In car (phone)</label>
@@ -34,6 +40,11 @@
   <div class="row"><label>Units</label>
     <span data-group="units"><button data-v="mmol">mmol/L</button><button data-v="mgdl">mg/dL</button></span>
   </div>
+  <div class="row"><label>Alert</label>
+    <button id="ack">Ack (= Enter on HUD)</button>
+    <button id="stage">Stage audio: off</button>
+  </div>
+  <div id="banner" class="banner">No alert</div>
   <div class="readout">
     <div class="card">Glucose<b id="r-value">--</b></div>
     <div class="card">Trend<b id="r-trend">--</b></div>

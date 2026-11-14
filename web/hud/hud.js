@@ -1,12 +1,20 @@
-// LowSight HUD — 600×600 glasses app. Input: ←/→ cycle views, Enter = ack.
+// LowSight HUD: the glasses app. 600×600 additive display, D-pad input.
+// ←/→ cycle views, Enter (Neural Band select) acknowledges the alert.
+// The simulator and the glasses deliver arrows and Enter as keydown events and nothing
+// else, and this page has no native controls, so one page-wide key handler owns input.
 (() => {
   const $ = (id) => document.getElementById(id);
   const VIEWS = ["glucose", "forecast", "about"];
+  const PHONE_GRACE_MS = 2500; // the phone is the main audio path: give it time to report it spoke
+  const SEAT_SHOW_MS = 6000; // how long "Driver seat ✓" stays after the check decides
   let view = 0;
   let state = null;
   let ws = null;
   let backoff = 500;
   let lastAlertId = null;
+  let speakTimer = null;
+  let prevRole = null;
+  let seatResult = null; // { text, cls, until }
 
   const fmt = (mgdl, units) =>
     units === "mmol" ? (mgdl / 18).toFixed(1) : Math.round(mgdl).toString();
@@ -19,8 +27,8 @@
   }
   function connect() {
     ws = new WebSocket(wsUrl());
-    ws.onopen = () => { backoff = 500; setStatus(null); };
-    ws.onmessage = (e) => { state = JSON.parse(e.data); render(); };
+    ws.onopen = () => { backoff = 500; };
+    ws.onmessage = (e) => { state = JSON.parse(e.data); setStatus(null); render(); };
     ws.onclose = () => {
       setStatus("Reconnecting…");
       setTimeout(connect, backoff);
@@ -41,6 +49,8 @@
     const u = state.units;
     const r = state.reading;
     const now = new Date(state.now);
+    const a = state.alert || { level: "NONE" };
+    const d = state.driving || {};
 
     if (r) {
       const ageMin = Math.round((now - new Date(r.t)) / 60000);
@@ -56,26 +66,63 @@
     }
     $("unit").textContent = unitLabel(u);
 
-    const d = state.driving || {};
-    const driving = !!d.driving;
-    $("driving").classList.toggle("hidden", !driving);
-    $("driving").textContent = d.role === "driver" ? "● Driver" : "● In car";
-    // No sparkline while driving — minimal visual load.
-    $("spark").classList.toggle("hidden", !!driving);
-    if (!driving) drawSpark();
+    renderContext(d);
+    // No sparkline while driving or alerting: minimal visual load, room for the banner.
+    const quiet = !d.driving && a.level === "NONE";
+    $("spark").classList.toggle("hidden", !quiet);
+    if (quiet) drawSpark();
 
-    renderBanner();
+    renderBanner(a);
     renderForecast();
+    onAlert(a);
   }
 
-  function renderBanner() {
-    const a = state.alert;
+  function renderContext(d) {
+    const badge = $("badge");
+    let text = "";
+    let cls = "";
+    if (d.role === "driver" && (d.driving || d.in_vehicle)) text = "● Driver";
+    else if (d.role === "passenger" && d.in_vehicle) { text = "● Passenger"; cls = "passenger"; }
+    else if (d.driving) text = "● In car";
+    badge.textContent = text;
+    badge.className = `badge ${cls}`;
+    badge.classList.toggle("hidden", !text);
+
+    // Seat check feedback: "Checking seat…" while frames arrive, then the result briefly.
+    if (prevRole !== null && d.role !== prevRole && d.role !== "unknown") {
+      seatResult = d.role === "driver"
+        ? { text: "Driver seat ✓", cls: "", until: Date.now() + SEAT_SHOW_MS }
+        : { text: "Passenger seat", cls: "passenger", until: Date.now() + SEAT_SHOW_MS };
+    }
+    prevRole = d.role;
+    const seat = $("seat");
+    if (seatResult && Date.now() < seatResult.until) {
+      seat.textContent = seatResult.text;
+      seat.className = `seat ${seatResult.cls}`;
+    } else if (d.seat_checking) {
+      seat.textContent = "Checking seat…";
+      seat.className = "seat checking";
+    } else {
+      seat.className = "seat hidden";
+    }
+  }
+
+  function renderBanner(a) {
     const el = $("banner");
     if (!a || a.level === "NONE") { el.classList.add("hidden"); return; }
     el.className = `banner ${a.level}${a.acked ? " acked" : ""}`;
-    $("banner-title").textContent = a.title;
-    $("banner-line").textContent = a.line;
-    if (a.id && a.id !== lastAlertId) { lastAlertId = a.id; playAlert(a); }
+    $("banner-title").textContent = a.acked ? `${a.title} ✓` : a.title;
+    $("banner-line").textContent = a.level === "RECOVERING" ? recoverLine(a) : a.line;
+  }
+
+  // RECOVERING: "Recheck in mm:ss" on the demo clock, then the engine's "Recheck now".
+  function recoverLine(a) {
+    if (!a.until) return a.line;
+    const left = Math.round((new Date(a.until) - new Date(state.now)) / 1000);
+    if (left <= 0) return a.line;
+    const mm = String(Math.floor(left / 60)).padStart(2, "0");
+    const ss = String(left % 60).padStart(2, "0");
+    return `Recheck in ${mm}:${ss}`;
   }
 
   function renderForecast() {
@@ -116,16 +163,41 @@
     svg.innerHTML = out;
   }
 
-  // ---- audio ----
-  function playAlert(a) {
+  // ---- alerts and audio ----
+  // The phone speaks every alert (its audio plays through the glasses speakers). The HUD
+  // only speaks if no phone reported speaking this alert id within PHONE_GRACE_MS.
+  function onAlert(a) {
+    if (!a || a.level === "NONE" || !a.id || a.id === lastAlertId) return;
+    lastAlertId = a.id;
+    if (view !== 0) setView(0); // a new alert is always visible
+    clearTimeout(speakTimer);
+    if (!a.speak || a.spoken) return; // silent (already said this episode) or the phone said it
+    speakTimer = setTimeout(() => {
+      const cur = state && state.alert;
+      if (cur && cur.id === a.id && !cur.spoken) speakHere(cur);
+    }, PHONE_GRACE_MS);
+  }
+
+  function speakHere(a) {
+    // speechSynthesis is supported on Meta Ray-Ban Display web apps (one en-US voice).
+    if ("speechSynthesis" in window && "SpeechSynthesisUtterance" in window) {
+      speechSynthesis.cancel(); // a newer alert replaces anything still being said
+      const u = new SpeechSynthesisUtterance(a.speak);
+      u.lang = "en-US";
+      speechSynthesis.speak(u);
+      return;
+    }
+    // Fallback: pre-generated clips in audio/ (none are shipped by default).
     const audio = $("audio");
     audio.src = `audio/${a.level.toLowerCase()}.mp3`;
-    audio.play().catch(() => {
-      if (a.speak && "speechSynthesis" in window) {
-        speechSynthesis.cancel();
-        speechSynthesis.speak(new SpeechSynthesisUtterance(a.speak));
-      }
-    });
+    audio.play().catch(() => {});
+  }
+
+  function acknowledge() {
+    const a = state && state.alert;
+    if (!a || a.level === "NONE" || a.acked) return;
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: "ack", id: a.id }));
+    setView(0);
   }
 
   // ---- input (D-pad: arrows + Enter) ----
@@ -138,12 +210,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.key === "ArrowRight") { setView(view + 1); e.preventDefault(); }
     else if (e.key === "ArrowLeft") { setView(view - 1); e.preventDefault(); }
-    else if (e.key === "Enter") {
-      if (ws && ws.readyState === 1 && state && state.alert && state.alert.level !== "NONE") {
-        ws.send(JSON.stringify({ type: "ack", id: state.alert.id }));
-      }
-      e.preventDefault();
-    }
+    else if (e.key === "Enter") { acknowledge(); e.preventDefault(); }
   });
 
   setView(0);

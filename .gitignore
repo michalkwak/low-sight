@@ -1,8 +1,11 @@
 .venv/
+node_modules/
+web/hud-app/dist/
 __pycache__/
 *.pyc
 .pytest_cache/
 data/city/
 data/demo_video/
+data/vision/
 *.mp4
 .env

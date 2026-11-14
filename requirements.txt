@@ -7,9 +7,9 @@ pydantic
 pydantic-settings
 pytest
 httpx
-# Vision (M3) — heavy, install when needed:
-# torch
-# open_clip_torch
-# pillow
+# Vision (M3): the CLIP seat check. Large (CPU torch ~200 MB + ~600 MB of weights on first use).
+torch
+open_clip_torch
+pillow
 # Optional forecaster (stretch):
 # scikit-learn

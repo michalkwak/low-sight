@@ -12,26 +12,29 @@ wearer opens LowSight.
 
 > **Not medical advice.** LowSight is decision support. It never suggests insulin doses.
 
-Full spec: [LOWSIGHT_BUILD_PLAN.md](LOWSIGHT_BUILD_PLAN.md).
+Full spec: [LOWSIGHT_BUILD_PLAN.md](LOWSIGHT_BUILD_PLAN.md). Task list: [TODO.md](TODO.md).
 
 ## Status
 
 | Milestone | State |
 |---|---|
 | M0: skeleton, config, models, DemoClock, health, static mounts | ✅ |
-| M1: synthetic scenarios, ReplaySource, baseline forecaster, `/ws/state`, ambient HUD | ✅ (not yet checked in DisplayGlasses.dev) |
+| M1: synthetic scenarios, ReplaySource, baseline forecaster, `/ws/state`, ambient HUD | ✅ (not yet checked in a simulator) |
 | Phone companion: trip detection, driver/passenger context, speaks + notifies alerts | ✅ (`/phone`, `/api/phone`) |
-| M2: alert engine + tests + control panel | control panel works (in-car and seat overrides); engine is a stub that always returns `NONE` |
-| M3: CLIP seat check + camera page | `/ws/frames` and seat smoothing exist (accepts `{"p_driver":…}` for testing); the CLIP detector and camera page are still to build |
-| M4–M7 | not started |
+| M2: alert engine (all 5 levels, dedupe, hysteresis, ack) + tests + control panel | ✅ |
+| M3: seat check: camera page, `/ws/frames`, CLIP detector, `eval_vision.py` | code ✅; the CLIP model is **untested** (vision deps not installed) and there are no labelled frames yet |
+| M4: PRE_DRIVE (seat check and trip start), RECOVERING countdown, stage audio, PULL_OVER repeat | ✅ (audio uses `speechSynthesis`; no mp3s, see TODO) |
+| M5: polish and numbers | partly: forecast floor, stale states, Meta metadata and fluid layout done; legibility, device checks and numbers need people and hardware |
+| M6–M7 | not started |
 
 ## Running it
 
 ```bash
 python -m venv .venv
 # Windows:  .venv\Scripts\activate      macOS/Linux:  source .venv/bin/activate
-pip install -r requirements.txt          # vision deps (torch, open_clip_torch, pillow) are commented out until M3
-python scripts/make_scenarios.py         # writes data/scenarios/*.csv
+pip install -r requirements.txt          # core only
+pip install torch open_clip_torch pillow # optional, for the real seat check (large; ~600 MB of weights on first use)
+python scripts/make_scenarios.py         # writes data/scenarios/*.csv (already committed)
 uvicorn backend.app:app --port 8000
 cloudflared tunnel --url http://localhost:8000   # → https://<random>.trycloudflare.com
 ```
@@ -39,17 +42,48 @@ cloudflared tunnel --url http://localhost:8000   # → https://<random>.trycloud
 1. Open `https://<tunnel>/control/` on the laptop. On the phone paired with the glasses, open
    `https://<tunnel>/phone/` and tap **Start** (keep it in front; it holds a wake lock). Open
    `https://<tunnel>/camera/` on the device you use as the "glasses camera" for the seat check.
-2. On https://displayglasses.dev, paste `https://<tunnel>/hud/` into **Web App Link** → Load. Set the position
-   to **Top Right** or **Mid Right** and the size to Medium. Use **Point of View** mode with a street or
-   driving background for screenshots, and **Record** for the demo video.
-3. Click into the simulator iframe so the arrow keys and Enter reach the HUD.
+2. Load the HUD (`https://<tunnel>/hud/`) in a simulator:
+   - **Meta Ray-Ban Display Simulator** (Meta's official Chrome extension,
+     [Chrome Web Store](https://chromewebstore.google.com/detail/jpjlmmodokemlepklkdbimceggpbjcll)): open the HUD
+     URL in Chrome and click the extension icon to turn the simulator on. Its D-pad and **Select** send arrow
+     and Enter key events to the page. It can record a WebM for the demo video and generate a "View on
+     Glasses QR". (Whether it works on `http://localhost` is unverified; the tunnel URL works.)
+   - **DisplayGlasses.dev**: paste the HUD URL into **Web App Link** → Load. Set the position to **Top Right**
+     or **Mid Right** and the size to Medium. Use **Point of View** mode with a street or driving background
+     for screenshots, and **Record** for the demo video. Click into the simulator iframe so the arrow keys
+     and Enter reach the HUD.
+3. On real glasses (from Meta's [Test](https://wearables.developer.meta.com/docs/develop/webapps/test/) page):
+   enable Developer Mode in the Meta AI app (Settings → App Info → tap the app version 5 times), then
+   **App Settings → Apps → Web Apps → Connect Web App**, enter the HTTPS HUD URL and **Save**. Needs glasses
+   software v125+ and Meta AI app v272+.
 
-Locally, without a tunnel: http://localhost:8000/hud/, /control/ and /phone/. (GPS and notifications on a
-real phone need HTTPS, so use the tunnel for that.)
+Locally, without a tunnel: http://localhost:8000/hud/, /control/, /phone/ and /camera/. (GPS, the camera and
+notifications on a real phone need HTTPS, so use the tunnel for those.)
+
+### Demo flow (plan §11)
+- **Pre-drive:** scenario `low_before_drive`, then a seat check on `/camera/` (or **Seat: Driver** on the
+  control panel). The HUD shows "Driver seat ✓" and **CHECK BEFORE DRIVING**.
+- **Low soon → pull over:** scenario `falling_while_driving`, **In car: On** (or the phone's "Connected to
+  car"), then **Jump to −20 min before crossing**: LOW_SOON at the 50-min reading, PULL_OVER at 60. (The
+  −5 min jump lands on PULL_OVER directly.) Enter on the HUD acknowledges; `treated_recovery` shows
+  **WAIT · RECHECK** with a countdown once glucose rises.
+- **Stage audio** on the control panel speaks alerts through the laptop, so the room hears them.
 
 ### HUD controls
 - `←` / `→`: cycle views (Glucose / Forecast detail / About)
-- `Enter`: acknowledge the current alert
+- `Enter` (Neural Band select): acknowledge the current alert. It stops the PULL_OVER repeat and keeps the banner.
+
+### Audio
+The phone speaks each alert once (alert `id`s are unique) and reports it back. The HUD, if open, only speaks
+an alert that no phone reported within 2.5 s, using `speechSynthesis` (supported on Meta Ray-Ban Display web
+apps: one en-US voice). An alert that was already spoken this episode updates silently.
+
+### Seat check
+`/camera/` sends a 384 px JPEG every 500 ms over `/ws/frames` for at most 3 minutes, and stops once the seat
+is decided (EMA > 0.70 or < 0.30 held for 3 s). Without the vision dependencies the page says so; use
+**Test without the vision model** (simulated scores through the same smoothing) or the control-panel seat
+override. To get the accuracy number for the pitch, put labelled frames in `data/vision/{driver,passenger,other}/`
+and run `python scripts/eval_vision.py`.
 
 ### Tests
 ```bash
@@ -59,10 +93,12 @@ pytest -q
 ## Layout
 ```
 backend/   FastAPI app, config, models, DemoClock, cgm/, forecast/, vision/, alerts/, hub
+backend/alerts/   engine.py: pure alert state machine (evaluate / acknowledge)
 backend/driving/  phone trip detection + DrivingContext (in car × seat role)
+backend/vision/   SeatTracker (smoothing) + clip_detector.py (optional CLIP zero-shot)
 web/       hud/ (glasses app), phone/ (phone companion), control/ (demo operator), camera/ (seat-check frames)
-data/      scenarios/*.csv (committed); city/ and demo_video/ are gitignored
-scripts/   make_scenarios.py
+data/      scenarios/*.csv (committed); city/, demo_video/ and vision/ are gitignored
+scripts/   make_scenarios.py, eval_vision.py
 tests/
 ```
 
