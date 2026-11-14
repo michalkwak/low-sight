@@ -18,6 +18,7 @@
   let speakTimer = null;
   let prevRole = null;
   let seatResult = null; // { text, cls, until }
+  const stateListeners = new Set(); // voice tools (webmcp.js) wait on these for confirmations
 
   const fmt = (mgdl, units) =>
     units === "mmol" ? (mgdl / 18).toFixed(1) : Math.round(mgdl).toString();
@@ -61,6 +62,7 @@
     renderBanner(a);
     renderForecast();
     onAlert(a);
+    stateListeners.forEach((fn) => { try { fn(state); } catch (err) { console.error(err); } });
   }
 
   // ---- trend spike ----
@@ -290,12 +292,15 @@
     audio.play().catch(() => {});
   }
 
+  // Returns true if an acknowledgement was sent (the backend confirms it in the next state).
   function acknowledge() {
     const a = state && state.alert;
-    if (!a || a.level === "NONE" || a.acked) return;
-    if (DEV) window.parent.postMessage({ type: "lowsight-dev-ack" }, location.origin);
-    else if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: "ack", id: a.id }));
+    if (!a || a.level === "NONE" || a.acked) return false;
+    let sent = false;
+    if (DEV) { window.parent.postMessage({ type: "lowsight-dev-ack" }, location.origin); sent = true; }
+    else if (ws && ws.readyState === 1) { ws.send(JSON.stringify({ type: "ack", id: a.id })); sent = true; }
     setView(0);
+    return sent;
   }
 
   // ---- input (D-pad: arrows + Enter) ----
@@ -311,14 +316,39 @@
     else if (e.key === "Enter") { acknowledge(); e.preventDefault(); }
   });
 
+  // ---- voice: Meta AI tools over WebMCP (webmcp.js). Optional; the D-pad never depends on it. ----
+  let devTools = null; // dev page only: a local registry standing in for Meta AI
+  try {
+    const tools = window.LowSightWebMCP;
+    const api = {
+      getState: () => state,
+      onState: (fn) => { stateListeners.add(fn); return () => stateListeners.delete(fn); },
+      connected: () => DEV || !!(ws && ws.readyState === 1),
+      acknowledge,
+      showView: (name) => setView(VIEWS.indexOf(name)),
+      fmt, unitLabel, trendWords: TREND_WORDS,
+    };
+    if (tools && document.modelContext) tools.register(document.modelContext, api);
+    else if (tools && DEV) { devTools = tools.createLocalContext(); tools.register(devTools, api); }
+  } catch (err) {
+    console.error("LowSight voice tools unavailable", err);
+  }
+
   setView(0);
   $("hud").focus();
   if (DEV) {
     window.addEventListener("message", (e) => {
-      if (e.origin !== location.origin || !e.data || e.data.type !== "lowsight-dev-state") return;
-      state = e.data.state;
-      setStatus(null);
-      render();
+      if (e.origin !== location.origin || !e.data) return;
+      if (e.data.type === "lowsight-dev-state") {
+        state = e.data.state;
+        setStatus(null);
+        render();
+      } else if (e.data.type === "lowsight-dev-tool" && devTools) {
+        const { name, args, reqId } = e.data;
+        const reply = (result, error) => window.parent.postMessage(
+          { type: "lowsight-dev-tool-result", reqId, name, result, error }, location.origin);
+        devTools.call(name, args).then((r) => reply(r), (err) => reply(undefined, String(err)));
+      }
     });
     window.parent.postMessage({ type: "lowsight-dev-ready" }, location.origin);
   } else {

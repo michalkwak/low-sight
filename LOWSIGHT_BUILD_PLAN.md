@@ -58,7 +58,7 @@ A phone on the dashboard can show a number. It can't tell whether you're the dri
 | Glasses sessions (Web App **and** DAT camera) last **≤ 3 min** and are **started only by the wearer** | No continuous on-glasses detection or alerting. **Trip detection and alert delivery live on the phone.** Vision is a one-off seat check (decides in ~3 s, well inside a session). The HUD is designed for short glances. |
 | The phone can push notifications to the display, and phone audio plays through the glasses speakers | Alerts = phone TTS (heard through the glasses) + phone notification (seen on the display). Tapping the notification opens the HUD for detail. |
 | Hosted at a **public HTTPS URL** (simulator loads it via URL, glasses via QR) | Serve the HUD over HTTPS (tunnel or static deploy). Backend sockets must be **wss://**. |
-| The glasses have a slow link and CPU: first load **under 300 KB and fewer than 15 requests**, display refreshes at **30 Hz** | Plain HTML/CSS/JS HUD, no framework bundle (~23 KB in 4 requests). No 60 fps loops; animate only while something changes. |
+| The glasses have a slow link and CPU: first load **under 300 KB and fewer than 15 requests**, display refreshes at **30 Hz** | Plain HTML/CSS/JS HUD, no framework bundle (~36 KB in 5 requests). No 60 fps loops; animate only while something changes. |
 | Web Apps get a supported subset of **`speechSynthesis`** through the glasses speaker (one en-US voice) | The HUD can speak alerts itself while it is open. Keep the same information on screen, never speech-only. |
 | Installing on real glasses needs Developer Mode in the Meta AI app, then **Connect Web App** with the HTTPS URL, or Meta's install QR (a plain URL QR doesn't work) | The tunnel URL is enough. Glasses software v125+ and Meta AI app v272+. |
 | Don't block iframe embedding | The HUD's own `/hud/dev.html` embeds it. Don't send `X-Frame-Options: DENY` or a restrictive `frame-ancestors` CSP from the HUD host. |
@@ -137,7 +137,8 @@ lowsight/
     hub.py                 # connection manager, broadcast AppState
   web/
     hud/index.html, hud.css, hud.js         # the glasses app
-    hud/dev.html                             # slider page that drives the HUD without the backend
+    hud/webmcp.js                            # Meta AI voice tools (WebMCP)
+    hud/dev.html                             # slider page + voice panel; drives the HUD without the backend
     hud/audio/*.mp3                          # optional fallback audio (speechSynthesis is the main path)
     control/index.html, control.js           # demo control panel
     camera/index.html, camera.js             # webcam/video → frames (stands in for the glasses camera session)
@@ -293,6 +294,8 @@ Inputs every tick: `reading`, `trend`, `forecast`, `driving` (the full `DrivingS
 
 **Input:** `Enter` = acknowledge the current alert. `←/→` = cycle views (Glucose / Forecast detail / About & disclaimer). `↑/↓` = unused (reserved). Show focus states clearly.
 
+**Voice (WebMCP, `hud/webmcp.js`):** the HUD registers tools on `document.modelContext` so the wearer can ask Meta AI instead of pinching: `lowsight_get_status` (read-only: value, trend, forecast, alert, recheck time, driving), `lowsight_acknowledge_alert` (same as Enter; reports success only after the backend's state confirms the ack) and `lowsight_show_view` (glucose / forecast / about). Every result carries a `next_action`: answer in one or two short sentences, never give insulin or carb doses, never say it is safe to drive; the same guardrails sit in the page's `<meta name="description">`. Additive only: without `document.modelContext`, or if a registration fails, the D-pad path is unchanged. WebMCP is off by default on the glasses (Developer Mode or rollout) and is decided at app launch.
+
 **Audio:** the **phone** is the primary audio path (§5.11); its speech plays through the glasses speakers (confirmed by Meta). While the HUD is open it may also speak the alert with `speechSynthesis` (supported on the glasses), but must not double up with the phone: it speaks only if no phone reported this alert `id` within 2.5 s. For the demo, the **control panel can also speak** the alert through the laptop speakers ("Stage audio"), so audio always works on stage.
 
 **Connection:** derive the ws URL from `location` (`wss:` when `https:`). Auto-reconnect with backoff.
@@ -393,5 +396,5 @@ The full steps are in `README.md`.
 - **Phone web page limits:** a backgrounded or locked browser tab may stop GPS, speech and timers. For the demo keep the page in front with the wake lock. A native app (§8) fixes this.
 - **Web notifications on the glasses:** confirmed for phone notifications in general, unverified for a browser page. Speech through the glasses speakers is the main channel.
 - **CGM lag and low-range inaccuracy:** this is part of why forecasting matters. Mention it in Q&A.
-- **Simulator ≠ hardware:** Meta's docs say web-app `speechSynthesis` plays through the glasses speaker, but we haven't heard it on a device; real camera streaming via DAT is unbuilt. State this clearly and show the path to production.
+- **Simulator ≠ hardware:** Meta's docs say web-app `speechSynthesis` plays through the glasses speaker, but we haven't heard it on a device; the WebMCP voice tools are tested only against our own registry and the live backend, not Meta AI; real camera streaming via DAT is unbuilt. State this clearly and show the path to production.
 - **Data terms:** CITY stays local. Demo on synthetic traces.

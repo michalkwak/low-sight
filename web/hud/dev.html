@@ -47,6 +47,11 @@
     .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin-top: 12px; }
     .toggles label { font-weight: 500; display: flex; gap: 8px; align-items: center; }
     .note { color: var(--dim); font-size: 13px; margin-top: 8px; }
+    #voice-out {
+      margin: 12px 0 0; padding: 10px; max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+      font: 12px/1.45 ui-monospace, Consolas, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+    }
+    #voice-out:empty { display: none; }
   </style>
 </head>
 <body>
@@ -112,6 +117,18 @@
         <button data-v="mmol">mmol/L</button>
         <button data-v="mgdl">mg/dL</button>
       </div>
+    </section>
+
+    <section>
+      <label>Voice (Meta AI → WebMCP tools)</label>
+      <div class="chips" id="voice">
+        <button data-tool="lowsight_get_status">“What's my glucose?”</button>
+        <button data-tool="lowsight_acknowledge_alert">“OK, I'm pulling over.”</button>
+        <button data-tool="lowsight_show_view" data-view="forecast">“Show me the forecast.”</button>
+        <button data-tool="lowsight_show_view" data-view="glucose">“Back to my glucose.”</button>
+      </div>
+      <p class="note">Calls the HUD's tools the way Meta AI would and shows exactly what it gets back. On the glasses the same tools register on <code>document.modelContext</code>.</p>
+      <pre id="voice-out" aria-live="polite"></pre>
     </section>
   </main>
 
@@ -245,11 +262,27 @@
       }, 2000);
     });
 
-    // HUD → dev page: ready to receive, or Enter pressed (acknowledge).
+    // Voice: ask the HUD (iframe) to run a tool; it answers with lowsight-dev-tool-result.
+    let reqId = 0;
+    $("voice").addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      const args = b.dataset.view ? { view: b.dataset.view } : {};
+      $("voice-out").textContent = `→ ${b.dataset.tool}(${JSON.stringify(args)}) …`;
+      hud.contentWindow.postMessage({ type: "lowsight-dev-tool", name: b.dataset.tool, args, reqId: ++reqId }, location.origin);
+    });
+    function showToolResult(d) {
+      if (d.reqId !== reqId) return; // a newer call replaced it
+      let body = d.error ? `ERROR (thrown): ${d.error}` : d.result;
+      if (typeof body === "string") { try { body = JSON.parse(body); } catch { /* plain text */ } }
+      $("voice-out").textContent = `→ ${d.name}\n${typeof body === "string" ? body : JSON.stringify(body, null, 2)}`;
+    }
+
+    // HUD → dev page: ready to receive, Enter pressed (acknowledge), or a tool result.
     window.addEventListener("message", (e) => {
       if (e.origin !== location.origin || !e.data) return;
       if (e.data.type === "lowsight-dev-ready") push();
       if (e.data.type === "lowsight-dev-ack") { s.acked = true; push(); }
+      if (e.data.type === "lowsight-dev-tool-result") showToolResult(e.data);
     });
     // Keep the RECOVERING countdown and "x min ago" ticking.
     setInterval(push, 1000);

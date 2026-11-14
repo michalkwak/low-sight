@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="LowSight: eyes-up low-glucose alerts while driving. Decision support, not medical advice.">
+  <!-- Meta AI always reads the title and this description: keep the voice guardrails here. -->
+  <meta name="description" content="LowSight: eyes-up low-glucose alerts while driving. Decision support, not medical advice. When answering by voice: give the glucose value, trend and any alert in one or two short sentences; never give insulin or carb doses; never say it is safe to drive.">
   <meta name="mrbd-web-app-capable" content="yes">
   <meta name="application-name" content="LowSight">
   <title>LowSight</title>
@@ -51,13 +52,14 @@
       <div class="view-title">LowSight</div>
       <p class="about">Low-glucose alerts while driving.</p>
       <p class="about dim">Decision support only. Not medical advice. Never suggests insulin doses.</p>
-      <p class="about dim small">Select: acknowledge alert<br>◀ ▶ switch views</p>
+      <p class="about dim small">Select: acknowledge alert<br>◀ ▶ switch views<br>Ask Meta AI: “What's my glucose?”</p>
     </section>
 
     <div id="status" class="status">Connecting…</div>
     <nav class="dots" aria-hidden="true"><i></i><i></i><i></i></nav>
   </main>
   <audio id="audio" preload="none"></audio>
+  <script src="webmcp.js"></script>
   <script src="hud.js"></script>
 </body>
 </html>

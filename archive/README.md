@@ -9,7 +9,7 @@ A React 19 + Vite + TypeScript version of the glasses HUD built on Meta's Wearab
 
 - Its production build is ~500 KB (401 KB JS + 100 KB CSS; ~150 KB gzipped) and it loads Noto fonts from
   Google Fonts at runtime. Meta's first-load budget for glasses web apps is under 300 KB and fewer than
-  15 requests; the plain HUD is ~23 KB in 4 requests.
+  15 requests; the plain HUD was ~23 KB in 4 requests.
 - It predates the ring and trend-spike redesign, so it shows the older layout.
 
 When it was archived, its 13 Vitest tests, the TypeScript check and the production build passed under Node 24.15

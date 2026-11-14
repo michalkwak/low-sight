@@ -9,14 +9,14 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 - [x] Four synthetic glucose scenarios, replay source, baseline forecaster, trend arrows (M1)
 - [x] Live state over `/ws/state`; ambient HUD with value, arrow, sparkline and forecast band (M1)
 - [x] HUD redesign: value in a ring with an orbiting trend spike, alert-coloured ring, sparkline moved to the Forecast view; `/hud/dev.html` slider page (E0W)
-- [x] Chose the plain HUD over the React + UI Toolkit version (~23 KB vs ~500 KB); the React one is archived in `archive/hud-app/`
+- [x] Chose the plain HUD over the React + UI Toolkit version (~36 KB vs ~500 KB); the React one is archived in `archive/hud-app/`
 - [x] Phone trip detection (speed + car connection) and driver/passenger context
 - [x] Phone page (`/phone`): sends trip signals, speaks alerts, shows notifications
 - [x] Control panel: scenario, clock, jump to crossing, in-car and seat overrides, units
 - [x] Alert engine with all five levels, dedupe, hysteresis, ack, PULL_OVER repeat (M2, M4)
 - [x] Camera page, `/ws/frames` with the CLIP detector slot, seat feedback on the HUD (M3)
 - [x] HUD meets Meta's web-app metadata rules; forecast floor; stale states (M5, partly)
-- [x] 52 tests passing (alert engine, app wiring, forecast, trip detection, seat check, eval script)
+- [x] 53 pytest tests passing (alert engine, app wiring, forecast, trip detection, seat check, eval script, plus the 20 JS voice-tool tests run as one)
 
 ---
 
@@ -81,7 +81,7 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
   - [ ] Position: the gauge sits upper-centre, where the plan had the value top right to keep the road view clear. Check it over a driving background.
   - [ ] Colour-blind safety: the spike blends green → red when falling. The angle carries the meaning too; consider a small arrow inside the ring.
   - [ ] PULL_OVER: the banner must not crowd the ring.
-- [ ] HUD shows useful state within 1 s of opening (sessions are short). The first load is ~23 KB in 4 requests (Meta's budget: under 300 KB and 15 requests), and the server pushes state on connect. Time it in Chrome with network and CPU throttling, then on the glasses.
+- [ ] HUD shows useful state within 1 s of opening (sessions are short). The first load is ~36 KB in 5 requests, about 0.6 s at Meta's 1 KB ≈ 16 ms (budget: under 300 KB and 15 requests), and the server pushes state on connect. Time it in Chrome with network and CPU throttling, then on the glasses.
 - [x] Stale-data states: "No CGM data", "x min ago", "Reconnecting…". Still to do: test by killing the backend with the HUD open.
 - [x] HUD about view: "Decision support, not medical advice" disclaimer, plus the controls.
 - [x] Cap the forecast at 40 mg/dL (and 400) so the band doesn't dip to unrealistic values on steep drops.
@@ -109,7 +109,9 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 - [ ] **Better forecaster:** ridge regression on CITY data (last 6 values, deltas, time of day), split by patient. Switch only if it beats the baseline; put the comparison on a slide.
 - [ ] **Real glucose data:** a Nightscout URL or the Dexcom developer sandbox as an alternative glucose source.
 - [ ] **`docs/real-hardware.md`:** the path to production (native phone app + DAT seat check), so judges see it's buildable.
-- [ ] **Voice acknowledge:** Meta's toolkit can register WebMCP tools so the wearer operates an app by voice; "OK" by voice would remove the last bit of interaction while driving.
+- [x] **Voice control (WebMCP):** `web/hud/webmcp.js` registers `lowsight_get_status`, `lowsight_acknowledge_alert` and `lowsight_show_view` for Meta AI; guardrails in every result and the page description; dev-page Voice panel; 20 Node tests (run by pytest) plus an end-to-end check of ack confirmation against the live backend.
+  - [ ] On real glasses with WebMCP enabled (Developer Mode, relaunch the app): `await document.modelContext.getTools()` lists all 3 tools, and "Hey Meta, what's my glucose?" answers in one short sentence without dosing advice.
+  - [ ] Pitch: show the dev page's Voice panel, or a screen recording of it, as the hands-free demo if no glasses are available.
 
 ### After the hackathon: toward a real product
 

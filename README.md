@@ -27,7 +27,7 @@ Full spec: [LOWSIGHT_BUILD_PLAN.md](LOWSIGHT_BUILD_PLAN.md). Task list: [TODO.md
 | M5: polish and numbers | partly: forecast floor, stale states, Meta metadata and fluid layout done; legibility, device checks and numbers need people and hardware |
 | M6–M7 | not started |
 
-The glasses HUD is the plain HTML/CSS/JS app in `web/hud/` (~23 KB, no build step). An experimental React
+The glasses HUD is the plain HTML/CSS/JS app in `web/hud/` (~36 KB, no build step). An experimental React
 version built on Meta's UI Toolkit is archived in [archive/hud-app/](archive/hud-app/): its ~500 KB bundle is
 over Meta's first-load budget (under 300 KB, fewer than 15 requests).
 
@@ -85,6 +85,23 @@ the data is stale. The sparkline and forecast are on the Forecast view.
 (value, trend, alert, acknowledged, trend sweep, fake readings every 2 s) without the backend. Use it in a
 normal tab; use `/hud/` itself in the simulator.
 
+### Voice (Meta AI, WebMCP)
+The HUD registers three tools on `document.modelContext` ([web/hud/webmcp.js](web/hud/webmcp.js)), so the
+wearer can talk to Meta AI instead of using the Neural Band:
+
+| The wearer says | Tool | What happens |
+|---|---|---|
+| "What's my glucose?", "Am I going low?", "When do I recheck?" | `lowsight_get_status` | Read-only: value, trend, forecast, active alert, recheck time, driving context |
+| "OK, I'm pulling over." | `lowsight_acknowledge_alert` | Same as Select; it reports success only after the backend confirms |
+| "Show me the forecast." | `lowsight_show_view` | Switches the display to glucose, forecast or about |
+
+Every result tells Meta AI to answer in one or two short sentences, never to give insulin or carb doses and
+never to say it is safe to drive. The same guardrails are in the page's `<meta name="description">`.
+The tools are optional: if `document.modelContext` is missing or a registration fails, the HUD works as before.
+WebMCP is off by default on the glasses (Developer Mode or rollout) and is decided at launch, so relaunch the
+app after turning it on. The dev page's **Voice** panel calls the same tools and shows exactly what Meta AI
+gets back, so you can test and demo them without glasses.
+
 ### Audio
 The phone speaks each alert once (alert `id`s are unique) and reports it back. The HUD, if open, only speaks
 an alert that no phone reported within 2.5 s, using `speechSynthesis` (supported on Meta Ray-Ban Display web
@@ -99,7 +116,8 @@ and run `python scripts/eval_vision.py`.
 
 ### Tests
 ```bash
-uv run --group dev pytest -q
+uv run --group dev pytest -q          # also runs the JS voice-tool tests if Node is installed
+node --test tests/js/*.test.js        # the JS tests on their own
 ```
 
 ## Layout
@@ -108,11 +126,11 @@ backend/   FastAPI app, config, models, DemoClock, cgm/, forecast/, vision/, ale
 backend/alerts/   engine.py: pure alert state machine (evaluate / acknowledge)
 backend/driving/  phone trip detection + DrivingContext (in car × seat role)
 backend/vision/   SeatTracker (smoothing) + clip_detector.py (optional CLIP zero-shot)
-web/       hud/ (glasses app + dev.html), phone/ (phone companion), control/ (demo operator), camera/ (seat-check frames)
+web/       hud/ (glasses app, webmcp.js voice tools, dev.html), phone/ (phone companion), control/ (demo operator), camera/ (seat-check frames)
 archive/   hud-app/: the shelved React + UI Toolkit HUD (not served)
 data/      scenarios/*.csv (committed); city/, demo_video/ and vision/ are gitignored
 scripts/   make_scenarios.py, eval_vision.py
-tests/
+tests/     pytest suites; js/ holds the Node tests for the voice tools
 ```
 
 ## Data
