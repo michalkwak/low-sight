@@ -1,0 +1,9 @@
+# Server-only dependencies for hosting (e.g. Render's free tier, 512 MB RAM).
+# No vision packages: torch + CLIP don't fit. The app runs without them; the camera page
+# then reports "vision model not installed" and the simulate buttons / seat override still work.
+fastapi
+uvicorn[standard]
+numpy
+pandas
+pydantic
+pydantic-settings

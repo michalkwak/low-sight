@@ -1,0 +1,13 @@
+# Render Blueprint: one free web service that runs the whole app (HUD, phone, control, camera pages
+# and the WebSocket backend) at https://<name>.onrender.com. See README → "Hosting on Render".
+services:
+  - type: web
+    name: lowsight
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-server.txt
+    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"

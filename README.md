@@ -130,6 +130,23 @@ uv run --group dev pytest -q          # also runs the JS voice-tool tests if Nod
 node --test tests/js/*.test.js        # the JS tests on their own
 ```
 
+## Hosting on Render (free, permanent link)
+`render.yaml` deploys the whole app as one free web service, so the glasses, phone and control panel get a
+fixed `https://<name>.onrender.com` link and no laptop or tunnel is needed.
+
+1. In the [Render dashboard](https://dashboard.render.com): **New → Blueprint**, connect this GitHub repo and
+   **Apply**. It installs `requirements-server.txt` and starts
+   `uvicorn backend.app:app --host 0.0.0.0 --port $PORT`.
+2. Add `https://<name>.onrender.com/hud/` to the glasses once. Open `/phone/` on the phone and `/control/` on the laptop.
+
+Limits of the free tier:
+- **It sleeps after ~15 minutes without traffic**, and the first request then takes about a minute. Open
+  `/control/` a few minutes before a demo.
+- **No vision model:** torch and CLIP don't fit in 512 MB. The camera page says the model isn't installed; use
+  its simulate buttons, the phone's "I'm driving" / "I'm a passenger", or the control-panel seat override.
+- **One shared demo state and no login:** anyone with the `/control/` link can change it. Don't share that link.
+- A restart (deploy or wake-up) resets the scenario and clears any seat or override.
+
 ## Layout
 ```
 backend/   FastAPI app, config, models, DemoClock, cgm/, forecast/, vision/, alerts/, hub
