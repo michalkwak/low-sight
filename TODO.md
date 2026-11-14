@@ -60,6 +60,8 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
   - [x] **"Start seat check"** button: sends frames for at most 3 min, stops early once the seat is decided
   - [x] Overlay showing `p_driver` and the seat result
 - [x] HUD: show "Driver seat ✓" / "Passenger seat" when the check decides ("Checking seat…" while frames arrive).
+- [x] Seat without a camera: "I'm driving" / "I'm a passenger" by voice (`lowsight_confirm_seat`) or on `/phone/`. A "passenger" can't clear PULL OVER or CHECK BEFORE DRIVING.
+- [ ] Try the voice seat tool with real Meta AI on the glasses (only tested against our local registry so far).
 - [ ] Record labelled footage in a parked car: driver's seat, passenger seat, plus indoor clips. Put frames in `data/vision/{driver,passenger,other}/` (gitignored).
 - [x] `scripts/eval_vision.py`: accuracy and confusion matrix on ~50 labelled frames. **Run it once the footage exists: this number goes on a pitch slide.**
 - [ ] **Done when:** pointing at a steering wheel (or the POV video) confirms "driver" within about 3–5 s, and passenger or indoor frames don't. A reported run found ~3.1 s on steady scores and indoor frames now resolve to "can't tell"; real parked-car passenger and indoor footage still needs validation.

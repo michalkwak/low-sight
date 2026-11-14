@@ -34,13 +34,14 @@ function makeApi(state, { connected = true, ackConfirmMs = 200 } = {}) {
   const listeners = new Set();
   const api = {
     state,
-    calls: { ack: 0, views: [] },
+    calls: { ack: 0, views: [], seats: [] },
     getState: () => api.state,
     onState: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
     emit(s) { api.state = s; listeners.forEach((fn) => fn(s)); },
     listenerCount: () => listeners.size,
     connected: () => connected,
     acknowledge: () => { api.calls.ack++; return true; },
+    confirmSeat: (role) => { api.calls.seats.push(role); return true; },
     showView: (v) => api.calls.views.push(v),
     fmt, unitLabel, trendWords: TREND_WORDS, ackConfirmMs,
   };
@@ -55,7 +56,7 @@ const parse = (r) => (typeof r === "string" ? JSON.parse(r) : r);
 test("tool names are unique, not reserved, and fit Meta AI's 57-character budget", () => {
   const reserved = ["openUrl", "goBack", "goForward", "reload", "getCurrentUrl", "getPageTitle", "getPageText"];
   const names = W.createTools(makeApi(null)).map((t) => t.name);
-  assert.deepEqual(names, ["lowsight_get_status", "lowsight_acknowledge_alert", "lowsight_show_view"]);
+  assert.deepEqual(names, ["lowsight_get_status", "lowsight_acknowledge_alert", "lowsight_confirm_seat", "lowsight_show_view"]);
   assert.equal(new Set(names.map((n) => n.slice(0, 57))).size, names.length);
   for (const n of names) assert.ok(!reserved.includes(n) && n.length <= 57, n);
 });
@@ -76,6 +77,8 @@ test("status tool is marked read-only", () => {
 
 // ---- registration must never break the HUD ----
 
+const N_TOOLS = W.createTools(makeApi(null)).length;
+
 function ctxReturning(fn) {
   const names = [];
   return { names, registerTool(t, opts) { names.push(t.name); return fn(t, opts); } };
@@ -83,13 +86,13 @@ function ctxReturning(fn) {
 
 test("registers every tool when registerTool returns undefined", () => {
   const ctx = ctxReturning(() => undefined);
-  assert.equal(W.register(ctx, makeApi(null)), 3);
-  assert.equal(ctx.names.length, 3);
+  assert.equal(W.register(ctx, makeApi(null)), N_TOOLS);
+  assert.equal(ctx.names.length, N_TOOLS);
 });
 
 test("registers every tool when registerTool returns a non-thenable handle", () => {
   const ctx = ctxReturning(() => ({ unregister() {} }));
-  assert.equal(W.register(ctx, makeApi(null)), 3);
+  assert.equal(W.register(ctx, makeApi(null)), N_TOOLS);
 });
 
 test("a rejected registration is logged, not thrown, and others still register", async () => {
@@ -98,7 +101,7 @@ test("a rejected registration is logged, not thrown, and others still register",
   console.error = (...a) => errors.push(a.join(" "));
   try {
     const ctx = ctxReturning((t) => (t.name === "lowsight_get_status" ? Promise.reject(new Error("nope")) : Promise.resolve()));
-    assert.equal(W.register(ctx, makeApi(null)), 3);
+    assert.equal(W.register(ctx, makeApi(null)), N_TOOLS);
     await new Promise((r) => setTimeout(r, 0));
     assert.ok(errors.some((e) => e.includes("lowsight_get_status registration failed")));
   } finally {
@@ -111,8 +114,8 @@ test("a synchronous throw on one tool does not strand the others", () => {
   console.error = () => {};
   try {
     const ctx = ctxReturning((t) => { if (t.name === "lowsight_get_status") throw new TypeError("bad"); });
-    assert.equal(W.register(ctx, makeApi(null)), 2);
-    assert.equal(ctx.names.length, 3);
+    assert.equal(W.register(ctx, makeApi(null)), N_TOOLS - 1);
+    assert.equal(ctx.names.length, N_TOOLS);
   } finally {
     console.error = orig;
   }
@@ -239,11 +242,52 @@ test("show_view switches views, accepts spoken aliases, rejects unknown ones", a
 
 test("dev local context calls tools like Meta AI and rejects duplicates", async () => {
   const ctx = W.createLocalContext();
-  assert.equal(W.register(ctx, makeApi(makeState())), 3);
-  assert.equal((await ctx.getTools()).length, 3);
+  assert.equal(W.register(ctx, makeApi(makeState())), N_TOOLS);
+  assert.equal((await ctx.getTools()).length, N_TOOLS);
   const r = parse(await ctx.call("lowsight_get_status", {}));
   assert.equal(r.glucose.value, "4.6");
   const orig = console.error;
   console.error = () => {};
   try { assert.equal(W.register(ctx, makeApi(makeState())), 0); } finally { console.error = orig; }
+});
+
+// ---- seat confirmation ("I'm driving" / "I'm a passenger") ----
+
+test("seat must be exactly driver or passenger: free text is never guessed", () => {
+  assert.equal(W.resolveSeat("driver"), "driver");
+  assert.equal(W.resolveSeat(" Passenger "), "passenger");
+  // Meta AI decides the seat; phrases (including negations that a regex got wrong) are sent back as a question.
+  for (const t of ["I'm driving, not a passenger", "not the passenger", "I won't be driving", "my wife is driving",
+                   "I'm not driving", "pilot", "", null, undefined]) assert.equal(W.resolveSeat(t), null, String(t));
+});
+
+test("confirm_seat succeeds only after the backend shows the new role", async () => {
+  const api = makeApi(makeState({ driving: { driving: false, in_vehicle: false, role: "unknown" } }));
+  const run = tool(api, "lowsight_confirm_seat").execute({ seat: "driver" });
+  assert.deepEqual(api.calls.seats, ["driver"]);
+  api.emit(makeState({ driving: { driving: false, in_vehicle: false, role: "driver" } }));
+  const r = parse(await run);
+  assert.equal(r.seat, "driver");
+  assert.match(r.next_action, /warn/);
+});
+
+test("confirm_seat: unknown seat, disconnected, or unconfirmed are handled problems", async () => {
+  const bad = parse(await tool(makeApi(makeState()), "lowsight_confirm_seat").execute({ seat: "pilot" }));
+  assert.equal(bad.error, true);
+  const off = parse(await tool(makeApi(makeState(), { connected: false }), "lowsight_confirm_seat").execute({ seat: "driver" }));
+  assert.equal(off.error, true);
+  const api = makeApi(makeState({ driving: { role: "unknown" } }), { ackConfirmMs: 50 });
+  const silent = parse(await tool(api, "lowsight_confirm_seat").execute({ seat: "passenger" }));
+  assert.equal(silent.error, true); // the backend never confirmed
+});
+
+test("confirm_seat refuses passenger during PULL_OVER/PRE_DRIVE, and explains an override", async () => {
+  const api = makeApi(makeState()); // PULL_OVER active
+  const r = parse(await tool(api, "lowsight_confirm_seat").execute({ seat: "passenger" }));
+  assert.equal(r.error, true);
+  assert.deepEqual(api.calls.seats, []); // nothing sent
+  const forced = makeApi(makeState({ alert: { level: "NONE" }, driving: { role: "driver", role_source: "forced" } }));
+  const f = parse(await tool(forced, "lowsight_confirm_seat").execute({ seat: "passenger" }));
+  assert.equal(f.error, true);
+  assert.match(f.message, /override/);
 });

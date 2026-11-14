@@ -34,6 +34,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s
 
 ANCHOR = datetime(2026, 1, 1, 8, 0, tzinfo=timezone.utc)  # scenario minute 0
 HISTORY_H = 3
+URGENT_LEVELS = ("PULL_OVER", "PRE_DRIVE")  # a wearer "passenger" can't clear these
 
 
 def scenario_exists(name: str) -> bool:
@@ -113,6 +114,19 @@ class Runtime:
         self.engine, effects = acknowledge(self.engine, alert_id, self.clock.now())
         self._log(effects)
         return bool(effects)
+
+    def confirm_seat(self, role: str) -> bool:
+        """The wearer says which seat they're in (voice via Meta AI, or the phone page).
+        A "passenger" is ignored while PULL_OVER or PRE_DRIVE is up: a wrong passenger
+        silences driving alerts, so one stray tap or misheard sentence must not clear an
+        urgent warning. (The backend has no auth by design for the hackathon: any client
+        on /ws/state can send this, as it can use the control panel's overrides.)"""
+        if role == "passenger" and self.engine.alert.level in URGENT_LEVELS:
+            log.info("wearer said passenger during %s: ignored", self.engine.alert.level)
+            return False
+        self.ctx.confirm_role(role, time.monotonic())
+        log.info("seat confirmed by the wearer: %s", role)
+        return True
 
     def mark_spoken(self, alert_id: str | None) -> bool:
         """A phone (or stage audio) spoke this alert, so the HUD shouldn't repeat it."""
@@ -228,8 +242,9 @@ async def control(c: Control):
 @app.websocket("/ws/state")
 async def ws_state(ws: WebSocket):
     """Server → client: AppState JSON at ~1 Hz and on every alert change.
-    Client → server: {"type": "ack", "id": …} (Enter on the HUD) and
-    {"type": "spoken", "id": …} (the phone or stage audio spoke that alert)."""
+    Client → server: {"type": "ack", "id": …} (Enter on the HUD),
+    {"type": "spoken", "id": …} (the phone or stage audio spoke that alert) and
+    {"type": "seat", "role": "driver" | "passenger"} (the wearer says which seat they're in)."""
     await hub.connect(ws)
     try:
         await ws.send_text(rt.compute().model_dump_json())
@@ -244,6 +259,8 @@ async def ws_state(ws: WebSocket):
                 changed = rt.ack(msg.get("id"))
             elif msg.get("type") == "spoken":
                 changed = rt.mark_spoken(msg.get("id"))
+            elif msg.get("type") == "seat" and msg.get("role") in ("driver", "passenger"):
+                changed = rt.confirm_seat(msg["role"])
             else:
                 continue
             if changed:

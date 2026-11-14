@@ -21,6 +21,7 @@
     #alert.PULL_OVER { border-color: #ff5a36; color: #ff5a36; }
     #alert.RECOVERING { border-color: #3ee6c1; color: #3ee6c1; }
     .hidden { display: none; }
+    .seat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     #log { font: 12px ui-monospace, monospace; color: #888; white-space: pre-wrap; max-height: 140px; overflow: auto; }
   </style>
 </head>
@@ -34,6 +35,12 @@
   <label>Simulated speed: <span id="simv">GPS</span>
     <input id="sim" type="range" min="-1" max="120" step="1" value="-1">
   </label>
+
+  <label>Your seat (when no camera seat check runs)</label>
+  <div class="seat-row">
+    <button id="seat-driver">I'm driving</button>
+    <button id="seat-passenger">I'm a passenger</button>
+  </div>
 
   <div id="alert" class="hidden"></div>
 

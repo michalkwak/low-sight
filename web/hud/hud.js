@@ -303,6 +303,15 @@
     return sent;
   }
 
+  // The wearer says which seat they're in (voice tool). Returns true if it was sent; the
+  // backend confirms it in the next state (driving.role).
+  function confirmSeat(role) {
+    if (role !== "driver" && role !== "passenger") return false;
+    if (DEV) { window.parent.postMessage({ type: "lowsight-dev-seat", role }, location.origin); return true; }
+    if (ws && ws.readyState === 1) { ws.send(JSON.stringify({ type: "seat", role })); return true; }
+    return false;
+  }
+
   // ---- input (D-pad: arrows + Enter) ----
   function setView(i) {
     view = (i + VIEWS.length) % VIEWS.length;
@@ -325,6 +334,7 @@
       onState: (fn) => { stateListeners.add(fn); return () => stateListeners.delete(fn); },
       connected: () => DEV || !!(ws && ws.readyState === 1),
       acknowledge,
+      confirmSeat,
       showView: (name) => setView(VIEWS.indexOf(name)),
       fmt, unitLabel, trendWords: TREND_WORDS,
     };

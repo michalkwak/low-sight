@@ -94,6 +94,7 @@ wearer can talk to Meta AI instead of using the Neural Band:
 | "What's my glucose?", "Am I going low?", "When do I recheck?" | `lowsight_get_status` | Read-only: value, trend, forecast, active alert, recheck time, driving context |
 | "OK, I'm pulling over." | `lowsight_acknowledge_alert` | Same as Select; it reports success only after the backend confirms |
 | "Show me the forecast." | `lowsight_show_view` | Switches the display to glucose, forecast or about |
+| "I'm driving." / "I'm a passenger." | `lowsight_confirm_seat` | Sets the seat like a camera seat check (see below); Meta AI must pass exactly `driver` or `passenger` |
 
 Every result tells Meta AI to answer in one or two short sentences, never to give insulin or carb doses and
 never to say it is safe to drive. The same guardrails are in the page's `<meta name="description">`.
@@ -113,6 +114,15 @@ is decided (EMA > 0.70 or < 0.30 held for 3 s). Without the vision dependencies 
 **Test without the vision model** (simulated scores through the same smoothing) or the control-panel seat
 override. To get the accuracy number for the pitch, put labelled frames in `data/vision/{driver,passenger,other}/`
 and run `python scripts/eval_vision.py`.
+
+**Without a camera** (glasses web apps can't use the glasses camera): the wearer can say "I'm driving" / "I'm a
+passenger" to Meta AI, or tap **I'm driving** / **I'm a passenger** on `/phone/`. Both send
+`{"type": "seat", "role": …}` on `/ws/state` and work exactly like a decided seat check: the seat holds for the
+trip, carries into a trip that starts within 5 minutes, and resets when the trip ends. Saying "driver" while
+low and parked raises CHECK BEFORE DRIVING. Safety rules: a "passenger" is **ignored while PULL OVER or CHECK
+BEFORE DRIVING is up**, a control-panel override wins, and a camera seat check that is running overrides the
+wearer. The state shows who decided the seat in `driving.role_source` (`camera`, `wearer` or `forced`). Like the
+other demo endpoints, this socket has no authentication (hackathon).
 
 ### Tests
 ```bash

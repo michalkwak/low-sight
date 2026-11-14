@@ -2,6 +2,7 @@
 //   "What's my glucose?" / "Am I going low?" / "How long until I recheck?" → lowsight_get_status
 //   "OK, I'm pulling over." / "Got it."                                    → lowsight_acknowledge_alert
 //   "Show me the forecast."                                                → lowsight_show_view
+//   "I'm driving." / "I'm a passenger."                                    → lowsight_confirm_seat
 // Additive only: hud.js works fully by D-pad when document.modelContext is absent or a
 // registration fails. This file touches no DOM; hud.js passes in the state and actions it owns,
 // so the tools call the same paths as the D-pad and the screen re-renders as usual.
@@ -20,6 +21,18 @@
     forecast: "forecast", graph: "forecast", chart: "forecast", prediction: "forecast", history: "forecast", trend: "forecast",
     about: "about", info: "about", help: "about", disclaimer: "about",
   };
+
+  // Exact values only. Meta AI interprets what the wearer said ("I'm driving, not a
+  // passenger") far better than a regex can; a wrong "passenger" would silence driving
+  // alerts, so anything that isn't exactly "driver" or "passenger" is sent back as a question.
+  function resolveSeat(text) {
+    const s = String(text || "").trim().toLowerCase();
+    return s === "driver" || s === "passenger" ? s : null;
+  }
+
+  // While these alerts are up, a wearer "passenger" is ignored (backend too): one stray
+  // tap or misheard sentence must not clear an urgent warning.
+  const URGENT = ["PULL_OVER", "PRE_DRIVE"];
 
   function problem(message, next_action) {
     return JSON.stringify({ error: true, message, next_action });
@@ -162,6 +175,57 @@
         },
       },
       {
+        name: "lowsight_confirm_seat",
+        description:
+          "Record which seat the wearer is in, when they say so (e.g. \"I'm driving\", \"I'm the driver\", " +
+          "\"I'm a passenger\", \"I'm not driving\"). driver: LowSight warns them about lows while the car moves. " +
+          "passenger: driving alerts pause for this trip (their CGM's own alarms still apply). " +
+          "Only call this when the wearer clearly states their seat; never guess it. If unsure, ask them.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            seat: { type: "string", description: 'Exactly "driver" or "passenger" (decide from what the wearer said).' },
+          },
+          required: ["seat"],
+        },
+        execute: async (args, opts) => {
+          const signal = opts && opts.signal;
+          const seat = resolveSeat(args && args.seat);
+          if (!seat) {
+            return problem("The seat must be exactly \"driver\" or \"passenger\".",
+              'Ask whether they are the driver or a passenger, then call again with seat "driver" or "passenger".');
+          }
+          if (!api.connected()) {
+            return problem("LowSight is reconnecting, so the seat could not be saved.",
+              "Tell the wearer to try again in a moment. Stop and talk.");
+          }
+          const now = api.getState();
+          if (now && now.driving && now.driving.role_source === "forced") {
+            return problem("The seat is set by the demo control panel's override, so it can't be changed by voice.",
+              "Tell the wearer the seat is fixed by an override right now. Stop and talk.");
+          }
+          if (seat === "passenger" && now && now.alert && URGENT.includes(now.alert.level)) {
+            return problem("A pull-over or pre-drive alert is active, so LowSight won't switch to passenger now.",
+              "Tell the wearer the alert stays on until their glucose recovers, and to pinch (Select) to acknowledge it. " +
+              GUARD + " Stop and talk.");
+          }
+          if (!api.confirmSeat || !api.confirmSeat(seat)) {
+            return problem("The seat could not be sent.", "Tell the wearer to try again in a moment. Stop and talk.");
+          }
+          const ok = await waitForState(
+            (st) => !!(st && st.driving && st.driving.role === seat), api.ackConfirmMs || ACK_CONFIRM_MS, signal);
+          if (!ok) {
+            return problem("LowSight did not confirm the seat.", "Tell the wearer to try again in a moment. Stop and talk.");
+          }
+          return {
+            seat,
+            next_action: seat === "driver"
+              ? "Confirm in one short sentence that LowSight will warn them about lows while they drive. " + GUARD + " Stop and talk."
+              : "Confirm in one short sentence that driving alerts are paused for this trip and their CGM's own alarms still apply. " + GUARD + " Stop and talk.",
+          };
+        },
+      },
+      {
         name: "lowsight_show_view",
         description:
           "Switch the glasses display to a view: glucose (value, trend ring and alert), " +
@@ -229,7 +293,7 @@
     };
   }
 
-  const API = { buildStatus, createTools, register, safeRegister, createLocalContext, GUARD };
+  const API = { buildStatus, createTools, register, safeRegister, createLocalContext, resolveSeat, GUARD };
   root.LowSightWebMCP = API;
   if (typeof module === "object" && module.exports) module.exports = API;
 })(typeof window !== "undefined" ? window : globalThis);

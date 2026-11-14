@@ -126,6 +126,8 @@
         <button data-tool="lowsight_acknowledge_alert">“OK, I'm pulling over.”</button>
         <button data-tool="lowsight_show_view" data-view="forecast">“Show me the forecast.”</button>
         <button data-tool="lowsight_show_view" data-view="glucose">“Back to my glucose.”</button>
+        <button data-tool="lowsight_confirm_seat" data-seat="I'm driving">“I'm driving.”</button>
+        <button data-tool="lowsight_confirm_seat" data-seat="I'm not driving">“I'm not driving.”</button>
       </div>
       <p class="note">Calls the HUD's tools the way Meta AI would and shows exactly what it gets back. On the glasses the same tools register on <code>document.modelContext</code>.</p>
       <pre id="voice-out" aria-live="polite"></pre>
@@ -266,7 +268,7 @@
     let reqId = 0;
     $("voice").addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b) return;
-      const args = b.dataset.view ? { view: b.dataset.view } : {};
+      const args = b.dataset.view ? { view: b.dataset.view } : b.dataset.seat ? { seat: b.dataset.seat } : {};
       $("voice-out").textContent = `→ ${b.dataset.tool}(${JSON.stringify(args)}) …`;
       hud.contentWindow.postMessage({ type: "lowsight-dev-tool", name: b.dataset.tool, args, reqId: ++reqId }, location.origin);
     });
@@ -282,6 +284,7 @@
       if (e.origin !== location.origin || !e.data) return;
       if (e.data.type === "lowsight-dev-ready") push();
       if (e.data.type === "lowsight-dev-ack") { s.acked = true; push(); }
+      if (e.data.type === "lowsight-dev-seat") { s.seat = e.data.role; push(); }
       if (e.data.type === "lowsight-dev-tool-result") showToolResult(e.data);
     });
     // Keep the RECOVERING countdown and "x min ago" ticking.

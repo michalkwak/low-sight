@@ -25,6 +25,14 @@
     $("simv").textContent = simKmh === null ? "GPS" : `${simKmh} km/h`;
   };
 
+  // The wearer says which seat they're in: same effect as a camera seat check, for this trip.
+  function confirmSeat(role) {
+    if (ws && ws.readyState === 1) { ws.send(JSON.stringify({ type: "seat", role })); log(`seat → ${role}`); }
+    else log("not connected: seat not sent");
+  }
+  $("seat-driver").onclick = () => confirmSeat("driver");
+  $("seat-passenger").onclick = () => confirmSeat("passenger");
+
   function send() {
     const speed = simKmh !== null ? simKmh : gpsKmh;
     fetch("/api/phone", {
@@ -89,7 +97,10 @@
       $("r-value").textContent = valueText;
       $("r-speed").textContent = s.driving.speed_kmh == null ? "--" : `${Math.round(s.driving.speed_kmh)} km/h`;
       $("r-car").textContent = s.driving.in_vehicle ? "yes" : "no";
-      $("r-role").textContent = s.driving.role;
+      const src = { camera: "camera", wearer: "you", forced: "override" }[s.driving.role_source];
+      $("r-role").textContent = src ? `${s.driving.role} (${src})` : s.driving.role;
+      $("seat-driver").classList.toggle("on", s.driving.role === "driver");
+      $("seat-passenger").classList.toggle("on", s.driving.role === "passenger");
 
       const a = s.alert;
       const box = $("alert");
