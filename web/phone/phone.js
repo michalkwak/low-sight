@@ -15,8 +15,8 @@
   // ---- signals ----
   $("car").onclick = () => {
     carConnected = !carConnected;
-    $("car").textContent = `Connected to car: ${carConnected ? "on" : "off"}`;
     $("car").classList.toggle("on", carConnected);
+    $("car").setAttribute("aria-pressed", String(carConnected));
     send();
   };
   $("sim").oninput = (e) => {
@@ -46,7 +46,8 @@
   $("start").onclick = async () => {
     if (started) return;
     started = true;
-    $("start").textContent = "Running";
+    $("start").textContent = "Running: keep this page open";
+    $("start").classList.add("running");
     // Prime speech so later alerts can play without a tap.
     if ("speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance("LowSight is on."));
     try {
@@ -88,17 +89,30 @@
     else new Notification(`LowSight: ${a.title}`, opts);
   }
 
+  const TREND = { "⇈": "rising fast", "↑": "rising", "↗": "rising slowly", "→": "steady", "↘": "falling slowly", "↓": "falling", "⇊": "falling fast" };
+  function setConn(live) {
+    $("conn").classList.toggle("live", live);
+    $("conn").lastElementChild.textContent = live ? "live" : "reconnecting…";
+  }
+
   function connect() {
     ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/state`);
     ws.onmessage = (e) => {
       const s = JSON.parse(e.data);
       const f = (v) => (s.units === "mmol" ? (v / 18).toFixed(1) : Math.round(v));
       const valueText = s.reading ? `${f(s.reading.mgdl)} ${s.arrow}` : "--";
-      $("r-value").textContent = valueText;
+      const unit = s.units === "mmol" ? "mmol/L" : "mg/dL";
+      const fresh = s.reading && s.forecast;
+      $("r-value").innerHTML = s.reading ? `${f(s.reading.mgdl)}<span class="u">${unit}</span>` : "--";
+      const mg = s.reading ? s.reading.mgdl : 0;
+      $("r-value").className = !fresh ? "stale" : mg < 70 ? "bad" : mg < 90 || mg > 180 ? "warn" : "ok";
+      $("r-trend").textContent = fresh ? `${s.arrow} ${TREND[s.arrow] || ""}` : s.reading ? "old reading" : "no data";
+      $("r-trend").className = `trend ${!fresh ? "" : s.trend_mgdl_min <= -1 ? "down" : s.trend_mgdl_min >= 1 ? "up" : "flat"}`;
       $("r-speed").textContent = s.driving.speed_kmh == null ? "--" : `${Math.round(s.driving.speed_kmh)} km/h`;
-      $("r-car").textContent = s.driving.in_vehicle ? "yes" : "no";
+      $("r-car").textContent = s.driving.in_vehicle ? (s.driving.driving ? "driving" : "yes") : "no";
       const src = { camera: "camera", wearer: "you", forced: "override" }[s.driving.role_source];
-      $("r-role").textContent = src ? `${s.driving.role} (${src})` : s.driving.role;
+      const role = { driver: "Driver", passenger: "Passenger", unknown: "Not set" }[s.driving.role] || s.driving.role;
+      $("r-role").textContent = src ? `${role} (${src})` : role;
       $("seat-driver").classList.toggle("on", s.driving.role === "driver");
       $("seat-passenger").classList.toggle("on", s.driving.role === "passenger");
 
@@ -106,8 +120,10 @@
       const box = $("alert");
       if (a.level === "NONE") { box.classList.add("hidden"); }
       else {
-        box.className = a.level;
-        box.textContent = `${a.title} — ${a.line}`;
+        box.className = `${a.level}${a.acked ? " acked" : ""}`;
+        $("alert-title").textContent = a.acked ? `${a.title} ✓` : a.title;
+        $("alert-line").textContent = a.line;
+        $("alert-icon").textContent = { PULL_OVER: "⚠", RECOVERING: "↻" }[a.level] || "!";
       }
       if (a.level !== "NONE" && a.id && a.id !== lastAlertId) {
         lastAlertId = a.id;
@@ -116,7 +132,8 @@
         if (started && a.speak) { speak(a); notify(a, valueText); }
       }
     };
-    ws.onclose = () => setTimeout(connect, 1000);
+    ws.onopen = () => setConn(true);
+    ws.onclose = () => { setConn(false); setTimeout(connect, 1000); };
   }
   connect();
 })();
