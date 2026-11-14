@@ -12,9 +12,10 @@ the path for those. The glasses camera does a one-off seat check when the wearer
 
 > **Not medical advice.** LowSight is decision support. It never suggests insulin doses.
 
-**Try it:** the site root opens a start page with links to everything; the simulator (`/control/`) plays a
-story in about a minute. The free Render plan can't run the camera's vision model (size limits), so run the
-project locally for the real camera seat check.
+**▶ Live demo: [low-sight.onrender.com](https://low-sight.onrender.com/)**. It opens a start page with links to
+everything, and the [simulator](https://low-sight.onrender.com/control/) plays a story in about a minute. The free
+Render plan sleeps when idle, so the first load can take about a minute. It also can't run the camera's vision
+model (size limits), so run the project locally for the real camera seat check.
 
 ![The LowSight simulator during a PULL OVER: one-click stories, driver actions, live blood sugar and forecast chart, and the glasses view blended over a road](docs/images/simulator.jpg)
 
