@@ -23,11 +23,14 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 ## 1. Do first: check the setup works
 
 - [x] Open the HUD in Meta's **Meta Ray-Ban Display Simulator** Chrome extension on `localhost`: it loads and runs.
-- [ ] Install `cloudflared` (`winget install --id Cloudflare.cloudflared`) and repeat over the tunnel URL; confirm ←/→ and Enter (the simulator's D-pad and Select) work and the "View on Glasses QR" is generated.
-- [ ] Open `/phone` on a real phone over the tunnel. Check GPS speed, the wake lock, speech, and that notifications appear.
-- [ ] **Check whether a browser notification from `/phone` shows on the glasses.** Meta confirmed this for phone app notifications, but not for browser pages. If it doesn't, rely on speech plus the HUD, and say so in the pitch.
-- [ ] Check that speech from the phone page plays through the glasses speakers.
-- [ ] Open `/camera` on a phone over the tunnel: camera permission, frames streaming, "Checking seat…" then "Driver seat ✓" on the HUD (use the simulate buttons until the vision deps are installed).
+- [x] `cloudflared` quick tunnel works: the HUD, phone and control pages and the live WebSocket all run over `https://….trycloudflare.com`.
+- [x] **HUD on real Meta Ray-Ban Display glasses:** added as a web app (Developer Mode; an install QR with `fb-viewapp://web_app_deep_link?appName=…&appUrl=…` also works) and opened from the app list. It shows live values.
+- [x] **Speech from `/phone` plays through the glasses speakers**, with LowSight closed. On `falling_while_driving` (In car: On, Jump −20 min) both LOW_SOON and PULL_OVER were heard.
+- [x] **Browser notifications from `/phone` do NOT show on the glasses display** (tested with LowSight closed). Decision: audio-only for the demo; say in the pitch that display notifications need a native phone app.
+- [x] Hosted permanently on Render's free tier (`render.yaml`, `requirements-server.txt`; no vision model there).
+- [ ] Open `/phone` on a real phone and check **GPS speed** while moving, and the wake lock over a few minutes.
+- [ ] Open `/camera` on a phone (laptop + tunnel; Render has no vision model): camera permission, frames streaming, "Checking seat…" then "Driver seat ✓" on the HUD.
+- [ ] Try "Hey Meta, what's my glucose?" / "I'm driving" with LowSight open (needs WebMCP turned on for the glasses).
 
 ## 2. M2: alert engine
 
@@ -35,7 +38,7 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
   - [x] **PULL_OVER**: when driving and the reading is below 70, the +10 min forecast is below 70, or the reading is below 90 and falling at −2 mg/dL/min or faster
   - [x] **LOW_SOON**: when driving and the +30 min forecast is below 70 while the reading is still 70 or above; "Low in ~N min", with N rounded to 5 min
   - [x] **PRE_DRIVE**: when low or dropping, and the seat check confirms the driver or a trip starts; escalate to PULL_OVER if it persists 60 s into driving
-  - [x] **RECOVERING**: after an acknowledged PULL_OVER while rising; 15-min countdown; clears at 90 or above with a flat or rising trend
+  - [x] **RECOVERING**: after a PULL_OVER while rising, once the driver has stopped (acknowledged, or a live phone reports < 5 km/h); 15-min countdown; clears at 90 or above with a flat or rising trend
   - [x] **NONE** otherwise
 - [x] Dedupe: speak each level once per episode. An episode ends after 10 demo-minutes without the condition.
 - [x] Hysteresis: only drop to a lower level after 2 consecutive readings without the condition.
@@ -76,7 +79,7 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 - [ ] ~~`scripts/make_audio.py`~~: probably not needed. Meta's docs say `speechSynthesis` works in glasses web apps (one en-US voice) and don't document `<audio>`, so the HUD speaks directly. Pre-generated mp3s in `web/hud/audio/` are still used as a fallback if a browser has no `speechSynthesis`. Decide whether a fixed recorded voice is worth it.
 - [x] HUD audio: don't double up with the phone (skip if the phone already spoke this alert `id`).
 - [x] Control panel "Stage audio" toggle: speaks alerts through the laptop speakers.
-- [x] Repeat the PULL_OVER audio once if it's unacknowledged for 2 demo-minutes.
+- [x] Repeat the PULL_OVER audio once if it's unacknowledged for 2 demo-minutes, and no sooner than 20 real seconds after the first (so a 30× demo clock doesn't stack them).
 - [ ] **Done when:** the full scenario runs with no one touching anything: the phone detects the trip and speaks the alerts. (Needs a real phone run.)
 
 ## 5. M5: polish and numbers

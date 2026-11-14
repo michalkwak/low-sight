@@ -12,7 +12,7 @@ from typing import Literal
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -87,7 +87,7 @@ class Runtime:
         driving = self.ctx.snapshot(self.driving_since, wall)
 
         self.engine, effects = evaluate(
-            self.engine, EngineInputs(reading=reading, trend=slope, forecast=fc, driving=driving), now
+            self.engine, EngineInputs(reading=reading, trend=slope, forecast=fc, driving=driving, wall_s=wall), now
         )
         self._log(effects)
         alert = self.engine.alert
@@ -174,6 +174,13 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 @app.get("/")
 def root():
     return RedirectResponse("/hud/")
+
+
+@app.get("/llms.txt")
+def llms_txt():
+    """Page instructions for Meta AI (the glasses' agent). Also served at /hud/llms.txt,
+    beside the app; which path the host fetches is unverified, so both work."""
+    return FileResponse(settings.WEB_DIR / "hud" / "llms.txt", media_type="text/plain; charset=utf-8")
 
 
 @app.get("/api/health")

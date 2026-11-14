@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     HYSTERESIS_READINGS: int = 2  # consecutive readings without the condition before dropping a level
     PRE_DRIVE_ESCALATE_S: float = 60.0  # PRE_DRIVE still true after this much driving → PULL_OVER
     REPEAT_PULL_OVER_MIN: float = 2.0  # unacknowledged PULL_OVER: repeat the audio once
+    # ...but never sooner than this many real seconds after the first. At 30× demo speed,
+    # 2 demo-minutes is 4 s, so the repeat would land on top of the first announcement.
+    REPEAT_MIN_WALL_S: float = 20.0
     STALE_MIN: float = 15.0  # a reading older than this is "no data" (no new alerts from it)
 
     # Seat confirmation (glasses camera, during a <=3 min user-started session)

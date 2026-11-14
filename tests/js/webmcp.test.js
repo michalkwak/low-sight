@@ -261,14 +261,31 @@ test("seat must be exactly driver or passenger: free text is never guessed", () 
                    "I'm not driving", "pilot", "", null, undefined]) assert.equal(W.resolveSeat(t), null, String(t));
 });
 
-test("confirm_seat succeeds only after the backend shows the new role", async () => {
-  const api = makeApi(makeState({ driving: { driving: false, in_vehicle: false, role: "unknown" } }));
+test("confirm_seat succeeds only after the backend shows the new role, and returns the new state", async () => {
+  const quiet = { level: "NONE" };
+  const api = makeApi(makeState({ alert: quiet, driving: { driving: false, in_vehicle: false, role: "unknown" } }));
   const run = tool(api, "lowsight_confirm_seat").execute({ seat: "driver" });
   assert.deepEqual(api.calls.seats, ["driver"]);
-  api.emit(makeState({ driving: { driving: false, in_vehicle: false, role: "driver" } }));
+  api.emit(makeState({ alert: quiet, driving: { driving: false, in_vehicle: false, role: "driver" } }));
   const r = parse(await run);
   assert.equal(r.seat, "driver");
-  assert.match(r.next_action, /warn/);
+  assert.equal(r.driving.seat, "driver");
+  assert.equal(r.alert, null);
+  assert.match(r.next_action, /warn them about lows/);
+});
+
+test("confirm_seat reports an alert the seat change raised (low + 'I'm driving')", async () => {
+  const quiet = { level: "NONE" };
+  const api = makeApi(makeState({ alert: quiet, driving: { role: "unknown" } }));
+  const run = tool(api, "lowsight_confirm_seat").execute({ seat: "driver" });
+  api.emit(makeState({
+    driving: { driving: false, in_vehicle: false, role: "driver" },
+    alert: { level: "PRE_DRIVE", title: "CHECK BEFORE DRIVING", line: "Treat before you set off", acked: false, id: "p1" },
+  }));
+  const r = parse(await run);
+  assert.equal(r.alert.level, "PRE_DRIVE");
+  assert.match(r.next_action, /alert's message/);
+  assert.match(r.next_action, /Stop and talk/);
 });
 
 test("confirm_seat: unknown seat, disconnected, or unconfirmed are handled problems", async () => {
@@ -290,4 +307,46 @@ test("confirm_seat refuses passenger during PULL_OVER/PRE_DRIVE, and explains an
   const f = parse(await tool(forced, "lowsight_confirm_seat").execute({ seat: "passenger" }));
   assert.equal(f.error, true);
   assert.match(f.message, /override/);
+});
+
+// ---- result contract ----
+
+test("status puts the glucose view on screen and asks for one short sentence", async () => {
+  const api = makeApi(makeState());
+  const r = parse(await tool(api, "lowsight_get_status").execute({}));
+  assert.deepEqual(api.calls.views, ["glucose"]);
+  assert.equal(r.on_screen, "glucose");
+  assert.match(r.next_action, /one short sentence/);
+  assert.match(r.next_action, /do not read them out/);
+});
+
+test("handled problems are plain objects, so the host stringifies them once", async () => {
+  const r = await tool(makeApi(makeState()), "lowsight_confirm_seat").execute({ seat: "pilot" });
+  assert.equal(typeof r, "object");
+  assert.equal(r.error, true);
+  assert.ok(r.next_action);
+});
+
+test("every result from every tool ends with a next_action", async () => {
+  const api = makeApi(makeState({ alert: { level: "NONE" } }), { ackConfirmMs: 20 });
+  const calls = [["lowsight_get_status", {}], ["lowsight_acknowledge_alert", {}],
+                 ["lowsight_confirm_seat", { seat: "nope" }], ["lowsight_show_view", { view: "nowhere" }],
+                 ["lowsight_show_view", { view: "forecast" }]];
+  for (const [name, args] of calls) {
+    const r = parse(await tool(api, name).execute(args));
+    assert.ok(typeof r.next_action === "string" && r.next_action.length > 0, name);
+  }
+});
+
+test("host-style executeTool: JSON string in, JSON string out, required params enforced", async () => {
+  const ctx = W.createLocalContext();
+  const api = makeApi(makeState());
+  W.register(ctx, api);
+  const tools = await ctx.getTools();
+  const view = tools.find((t) => t.name === "lowsight_show_view");
+  assert.deepEqual(view.inputSchema.required, ["view"]);
+  const out = await ctx.executeTool(view, JSON.stringify({ view: "forecast" }));
+  assert.equal(typeof out, "string");
+  assert.equal(JSON.parse(out).showing, "forecast");
+  await assert.rejects(ctx.executeTool(view, "{}"), /missing required parameter view/);
 });

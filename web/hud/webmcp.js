@@ -34,8 +34,10 @@
   // tap or misheard sentence must not clear an urgent warning.
   const URGENT = ["PULL_OVER", "PRE_DRIVE"];
 
+  // A handled problem is an ordinary result (the host treats any fulfilled result as success
+  // and JSON-stringifies it): Meta AI reads `error`, explains `message` and follows next_action.
   function problem(message, next_action) {
-    return JSON.stringify({ error: true, message, next_action });
+    return { error: true, message, next_action };
   }
 
   // ---- status: plain facts from the HUD's state, in the wearer's units ----
@@ -118,7 +120,8 @@
         inputSchema: { type: "object", properties: {} },
         annotations: { readOnlyHint: true },
         execute: async () => {
-          const s = status();
+          api.showView("glucose"); // the detail goes on screen; the spoken line stays short
+          const s = { ...status(), on_screen: "glucose" };
           if (!s.glucose) {
             return {
               ...s,
@@ -130,8 +133,9 @@
           return {
             ...s,
             next_action:
-              "Answer in one or two short sentences: the value with its units and trend, and the active alert " +
-              "and its message if there is one. If the reading is stale, say how old it is. " + GUARD + " Stop and talk.",
+              "Say one short sentence: the value with its units and its trend, plus the alert's title if there is one " +
+              "(or how old the reading is, if it is stale). The forecast and details are on screen: do not read them " +
+              "out unless asked. " + GUARD + " Stop and talk.",
           };
         },
       },
@@ -193,7 +197,8 @@
           const seat = resolveSeat(args && args.seat);
           if (!seat) {
             return problem("The seat must be exactly \"driver\" or \"passenger\".",
-              'Ask whether they are the driver or a passenger, then call again with seat "driver" or "passenger".');
+              "Stop and ask, in one short question, whether they are driving or a passenger. When they answer, " +
+              'call lowsight_confirm_seat with seat "driver" or "passenger".');
           }
           if (!api.connected()) {
             return problem("LowSight is reconnecting, so the seat could not be saved.",
@@ -217,12 +222,18 @@
           if (!ok) {
             return problem("LowSight did not confirm the seat.", "Tell the wearer to try again in a moment. Stop and talk.");
           }
-          return {
-            seat,
-            next_action: seat === "driver"
-              ? "Confirm in one short sentence that LowSight will warn them about lows while they drive. " + GUARD + " Stop and talk."
-              : "Confirm in one short sentence that driving alerts are paused for this trip and their CGM's own alarms still apply. " + GUARD + " Stop and talk.",
-          };
+          // Return the state after the change, so the model never has to ask what happened:
+          // saying "driver" while low raises CHECK BEFORE DRIVING, and that is what to say.
+          const after = status();
+          let next_action;
+          if (after.alert && !after.alert.acknowledged) {
+            next_action = "In one short sentence, say the seat is saved and give the alert's message. " + GUARD + " Stop and talk.";
+          } else if (seat === "driver") {
+            next_action = "Confirm in one short sentence that LowSight will warn them about lows while they drive. " + GUARD + " Stop and talk.";
+          } else {
+            next_action = "Confirm in one short sentence that LowSight won't give driving instructions this trip but will still warn about lows. " + GUARD + " Stop and talk.";
+          }
+          return { seat, alert: after.alert, driving: after.driving, next_action };
         },
       },
       {
@@ -284,7 +295,26 @@
         if (tools.has(tool.name)) throw new Error(`duplicate tool ${tool.name}`);
         tools.set(tool.name, tool);
       },
-      async getTools() { return [...tools.values()].map(({ name, description }) => ({ name, description })); },
+      async getTools() {
+        return [...tools.values()].map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
+      },
+      // Mirrors the host: input is a JSON string, the result resolves to a JSON string. A result
+      // with a `content` array is reduced to its concatenated text entries; anything else is
+      // JSON-stringified. Missing required parameters are rejected before execute runs.
+      async executeTool(toolOrName, inputJson, signal) {
+        const name = typeof toolOrName === "string" ? toolOrName : toolOrName && toolOrName.name;
+        const tool = tools.get(name);
+        if (!tool) throw new Error(`no tool ${name}`);
+        const input = inputJson ? JSON.parse(inputJson) : {};
+        for (const key of (tool.inputSchema && tool.inputSchema.required) || []) {
+          if (input[key] === undefined) throw new TypeError(`missing required parameter ${key}`);
+        }
+        const result = await tool.execute(input, { signal: signal || AbortSignal.timeout(10000) });
+        if (result && Array.isArray(result.content)) {
+          return result.content.filter((c) => c.type === "text").map((c) => c.text).join("");
+        }
+        return JSON.stringify(result);
+      },
       async call(name, args) {
         const tool = tools.get(name);
         if (!tool) throw new Error(`no tool ${name}`);

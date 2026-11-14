@@ -147,3 +147,12 @@ def test_frames_without_the_vision_model_say_why(monkeypatch):
         assert "not installed" in r["error"] and r["seat"] is None
         ws.send_text("garbage")
         assert "expected" in ws.receive_json()["error"]
+
+
+def test_page_instructions_for_meta_ai_are_served():
+    with TestClient(app) as c:
+        for path in ("/hud/llms.txt", "/llms.txt"):
+            r = c.get(path)
+            assert r.status_code == 200, path
+            assert "LowSight" in r.text and "lowsight_get_status" in r.text
+        assert len(c.get("/llms.txt").text) < 2500  # prefill on every turn: keep it short

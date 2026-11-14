@@ -99,6 +99,9 @@ wearer can talk to Meta AI instead of using the Neural Band:
 Every result tells Meta AI to answer in one or two short sentences, never to give insulin or carb doses and
 never to say it is safe to drive. The same guardrails are in the page's `<meta name="description">`.
 The tools are optional: if `document.modelContext` is missing or a registration fails, the HUD works as before.
+Meta AI's page instructions (identity, what's on screen, the rules) are in [web/hud/llms.txt](web/hud/llms.txt),
+served at `/hud/llms.txt` and `/llms.txt`. Tool results carry their own `next_action`; problems come back as
+`{error, message, next_action}`, and the page confirms every acknowledgement or seat change before reporting success.
 WebMCP is off by default on the glasses (Developer Mode or rollout) and is decided at launch, so relaunch the
 app after turning it on. The dev page's **Voice** panel calls the same tools and shows exactly what Meta AI
 gets back, so you can test and demo them without glasses.

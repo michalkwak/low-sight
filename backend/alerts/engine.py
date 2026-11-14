@@ -17,8 +17,11 @@ Levels, highest priority first ("driving" = in_vehicle and role != "passenger"):
               the LOW_SOON and the PULL_OVER conditions, worded for someone who isn't
               driving ("Treat when you can"). A wrong "passenger" from the seat check
               therefore softens the wording but never silences the warning.
-  RECOVERING  after an acknowledged PULL_OVER once glucose is rising: wait
-              RECOVER_WAIT_MIN, recheck. Clears at >= DRIVE_MIN with a flat or rising trend.
+  RECOVERING  after a PULL_OVER once glucose is rising and the driver has stopped (they
+              acknowledged it, or a live phone reports < PHONE_SPEED_OFF_KMH with glucose
+              already >= LOW): wait RECOVER_WAIT_MIN, recheck. Clears at >= DRIVE_MIN with a
+              flat or rising trend. A live phone showing the car moving again while glucose
+              is still < DRIVE_MIN (or dropping) brings PULL_OVER back.
   NONE        otherwise.
 
 Behaviour:
@@ -29,12 +32,14 @@ Behaviour:
   - Each level is spoken at most once per episode. An episode ends after its condition
     has been false for EPISODE_GAP_MIN. A silent alert has ``speak = None``.
   - Every alert gets a fresh ``id``, so the phone speaks and notifies it exactly once.
-  - An unacknowledged PULL_OVER repeats its audio once after REPEAT_PULL_OVER_MIN.
+  - An unacknowledged PULL_OVER repeats its audio once after REPEAT_PULL_OVER_MIN, and no
+    sooner than REPEAT_MIN_WALL_S real seconds after it was raised (keeps a fast demo clock
+    from stacking the repeat on top of the first announcement).
   - Acknowledging silences the repeat but keeps the banner.
   - A reading older than STALE_MIN raises nothing new; without new readings an active
     alert is held (a sensor gap is not a reason to clear a warning).
 
-All times are demo time (``now`` comes from the DemoClock).
+All times are demo time (``now`` comes from the DemoClock), except ``inputs.wall_s``.
 """
 import copy
 import secrets
@@ -69,6 +74,7 @@ class EngineInputs:
     trend: float | None
     forecast: Forecast | None
     driving: DrivingState
+    wall_s: float | None = None  # real seconds, monotonic and advancing; only spaces out the PULL_OVER repeat
 
 
 @dataclass
@@ -99,6 +105,19 @@ class EngineState:
     recovering: bool = False
     recover_ok: int = 0  # consecutive readings meeting the recovery clear condition
     recover_until: datetime | None = None
+    alert_wall_s: float | None = None  # real time the current alert was raised
+    drove_on: bool = False  # drove off during RECOVERING: a stop alone can't re-enter it until the alert clears
+
+
+def _stopped(d: DrivingState) -> bool:
+    """A live phone reports the car (nearly) stopped: evidence the driver has pulled over."""
+    return d.speed_kmh is not None and not d.phone_stale and d.speed_kmh < settings.PHONE_SPEED_OFF_KMH
+
+
+def _moving(d: DrivingState) -> bool:
+    """A live phone reports the car clearly moving. Uses the trip-start speed, so 5–15 km/h
+    (crawling, GPS jitter at a standstill) is neither stopped nor moving and can't flap."""
+    return d.speed_kmh is not None and not d.phone_stale and d.speed_kmh >= settings.PHONE_SPEED_ON_KMH
 
 
 # ---------------------------------------------------------------- forecast helpers
@@ -194,6 +213,7 @@ def _raise(level: str, s: EngineState, inp: EngineInputs, now: datetime) -> dict
         since=now,
         until=s.recover_until if level == "RECOVERING" else None,
     )
+    s.alert_wall_s = inp.wall_s
     return {"type": "raise", "level": level, "id": s.alert.id, "speak": speak}
 
 
@@ -216,13 +236,17 @@ def evaluate(prev: EngineState, inp: EngineInputs, now: datetime) -> tuple[Engin
             if s.misses[lvl] >= settings.HYSTERESIS_READINGS:
                 s.held[lvl], s.misses[lvl] = False, 0
 
-    # 2. RECOVERING starts when an acknowledged PULL_OVER sees glucose rising.
+    # 2. RECOVERING starts when a PULL_OVER sees glucose rising and the driver has evidently
+    #    stopped: they acknowledged it, or the phone reports the car stopped. (Without either,
+    #    an unacknowledged PULL_OVER clears normally once glucose recovers.)
     cur = s.alert
     if (
         not s.recovering
         and cur.level == "PULL_OVER"
-        and cur.acked
         and fresh
+        # Stopped alone is weak evidence (a red light), so it never replaces PULL_OVER while
+        # glucose is still below LOW; an acknowledgement is a deliberate act and can.
+        and (cur.acked or (_stopped(d) and inp.reading.mgdl >= settings.LOW and not s.drove_on))
         and trend is not None
         and trend >= settings.RISE_MIN
     ):
@@ -258,6 +282,12 @@ def evaluate(prev: EngineState, inp: EngineInputs, now: datetime) -> tuple[Engin
     if s.recovering:
         if d.driving and glu["PULL_OVER"] and trend is not None and trend < 0:
             s.recovering = False  # fell again: back to PULL_OVER below
+        elif d.driving and _moving(d) and glu["PRE_DRIVE"]:
+            # Driving on before recovering (still < DRIVE_MIN, or dropping): back to PULL_OVER,
+            # spoken again (its episode closed when RECOVERING began).
+            s.recovering, s.drove_on = False, True  # latch: stop-go traffic can't flap it back
+            s.pre_armed, s.pre_escalated, s.pre_driving_since = True, True, now
+            pull_active = True
         else:
             ok = fresh and inp.reading.mgdl >= settings.DRIVE_MIN and trend is not None and trend >= 0
             if new_reading:
@@ -301,6 +331,7 @@ def evaluate(prev: EngineState, inp: EngineInputs, now: datetime) -> tuple[Engin
     if level != cur.level:
         if level == "NONE":
             s.alert = Alert()
+            s.alert_wall_s, s.drove_on = None, False
             effects.append({"type": "clear", "level": cur.level})
         else:
             effects.append(_raise(level, s, inp, now))
@@ -315,6 +346,11 @@ def evaluate(prev: EngineState, inp: EngineInputs, now: datetime) -> tuple[Engin
             and not ep.repeated
             and s.alert.since is not None
             and now - s.alert.since >= timedelta(minutes=settings.REPEAT_PULL_OVER_MIN)
+            and (
+                inp.wall_s is None
+                or s.alert_wall_s is None
+                or inp.wall_s - s.alert_wall_s >= settings.REPEAT_MIN_WALL_S
+            )
         ):
             ep.repeated = True
             s.alert = s.alert.model_copy(update={"id": _next_id(s, level), "speak": SPEAK["PULL_OVER"]})

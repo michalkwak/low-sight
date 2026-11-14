@@ -319,3 +319,97 @@ def test_minutes_to_low_interpolates_and_rounds_to_5():
     assert minutes_to_low(r, fc, late) == 5  # never below 5
     no_cross = Forecast(t0=T0, horizons_min=[10, 20, 30], mean=[78, 76, 75], lo=[72, 64, 55], hi=[84, 88, 95])
     assert minutes_to_low(r, no_cross, T0) == settings.LOW_SOON_HORIZON
+
+
+# ---------------------------------------------------------------- repeat spacing, stopped-car recovery
+def _drive_with_wall(readings, wall_per_tick, end=100):
+    """Like run(), but with a real-time clock advancing ``wall_per_tick`` s per 30 s demo tick."""
+    s, events, t, wall = EngineState(epoch="test"), [], T0, 0.0
+    while t <= T0 + timedelta(minutes=end):
+        rs = [r for r in readings if r.t <= t]
+        inp = EngineInputs(rs[-1] if rs else None, baseline.trend(rs, t), baseline.forecast(rs, t), ds(), wall_s=wall)
+        s, eff = evaluate(s, inp, t)
+        events += [(wall, e) for e in eff]
+        t += STEP
+        wall += wall_per_tick
+    return events
+
+
+def test_pull_over_repeat_waits_for_real_time_on_a_fast_demo_clock():
+    # 30× demo speed: a 30 s demo tick is 1 s real, so 2 demo-minutes is only 4 s real.
+    ev = _drive_with_wall(scenario("falling_while_driving"), wall_per_tick=1.0)
+    raised = next(w for w, e in ev if e["type"] == "raise" and e["level"] == "PULL_OVER")
+    repeat = next(w for w, e in ev if e["type"] == "repeat")
+    assert repeat - raised >= settings.REPEAT_MIN_WALL_S  # not stacked on the first announcement
+
+
+def test_pull_over_repeat_at_real_speed_is_unchanged():
+    # 1× speed: a 30 s demo tick is 30 s real, so 2 demo-minutes already exceeds the minimum.
+    ev = _drive_with_wall(scenario("falling_while_driving"), wall_per_tick=30.0)
+    raised = next(w for w, e in ev if e["type"] == "raise" and e["level"] == "PULL_OVER")
+    repeat = next(w for w, e in ev if e["type"] == "repeat")
+    assert repeat - raised == pytest.approx(settings.REPEAT_PULL_OVER_MIN * 60, abs=30)
+
+
+def test_unacknowledged_pull_over_recovers_when_the_phone_says_stopped():
+    stopped = DrivingState(driving=True, in_vehicle=True, speed_kmh=0.0, phone_stale=False, since=T0)
+    _, ev = run(scenario("treated_recovery"), stopped, end=90)
+    levels = [lvl for _, lvl in raises(ev)]
+    assert levels[-1] == "RECOVERING" and "PULL_OVER" in levels  # no ack needed
+
+
+def test_unacknowledged_pull_over_while_moving_does_not_recover():
+    moving = DrivingState(driving=True, in_vehicle=True, speed_kmh=60.0, phone_stale=False, since=T0)
+    _, ev = run(scenario("treated_recovery"), moving, end=90)
+    assert "RECOVERING" not in [lvl for _, lvl in raises(ev)]
+    stale = DrivingState(driving=True, in_vehicle=True, speed_kmh=0.0, phone_stale=True, since=T0)
+    _, ev = run(scenario("treated_recovery"), stale, end=90)  # an old speed isn't evidence
+    assert "RECOVERING" not in [lvl for _, lvl in raises(ev)]
+
+
+def _phone(kmh):
+    return DrivingState(driving=True, in_vehicle=True, speed_kmh=kmh, phone_stale=False, since=T0)
+
+
+def test_red_light_while_still_low_keeps_pull_over():
+    # Reviewer's case: below 70 but rising, the phone reports 0 km/h for one minute (a red
+    # light), then 50 km/h again. Stopping must not swap PULL_OVER for "wait · recheck".
+    values = [100, 92, 84, 76, 68, 60, 52, 58, 63, 68, 69, 68, 66, 63, 60, 58, 57]
+    _, ev = run(trace(values), lambda m: _phone(0.0 if 25 <= m < 26 else 50.0), end=5 * (len(values) - 5))
+    levels = [lvl for _, lvl in raises(ev)]
+    assert "RECOVERING" not in levels
+    pull_at = next(m for m, lvl in raises(ev) if lvl == "PULL_OVER")
+    assert not [e for m, e in ev if m > pull_at and e["type"] == "clear"]  # never cleared while low
+
+
+def test_driving_on_before_recovering_brings_pull_over_back():
+    # Stopped and treated (rising, >= 70) → "wait · recheck"; then drives off at 79.7 (< 90).
+    _, ev = run(scenario("treated_recovery"), lambda m: _phone(0.0 if m < 47 else 50.0), end=90)
+    r = raises(ev)
+    rec_at = next(m for m, lvl in r if lvl == "RECOVERING")
+    back = [(m, e) for m, e in ev if m > rec_at and e["type"] == "raise" and e["level"] == "PULL_OVER"]
+    assert back and back[0][0] == pytest.approx(47, abs=0.5)
+    assert back[0][1]["speak"]  # a new warning, said out loud
+
+
+def _spoken(ev):
+    return [(m, e["level"]) for m, e in ev if e["type"] in ("raise", "repeat") and e.get("speak")]
+
+
+def test_gps_jitter_around_5_kmh_does_not_flap_or_respeak():
+    # Reviewer's case C: speed alternates 3 / 7 km/h every tick after the PULL_OVER.
+    jitter = lambda m: _phone(3.0 if int(m * 2) % 2 == 0 else 7.0) if m >= 44 else _phone(50.0)
+    _, ev = run(scenario("treated_recovery"), jitter, end=70)
+    spoken = [lvl for _, lvl in _spoken(ev)]
+    assert spoken.count("RECOVERING") <= 1 and spoken.count("PULL_OVER") <= 2  # raise + one repeat
+
+
+def test_stop_go_traffic_does_not_flap_or_respeak():
+    # Reviewer's case D: 0 / 30 km/h alternating every minute after the PULL_OVER.
+    stop_go = lambda m: _phone(0.0 if int(m) % 2 == 0 else 30.0) if m >= 44 else _phone(50.0)
+    _, ev = run(scenario("treated_recovery"), stop_go, end=70)
+    spoken = [lvl for _, lvl in _spoken(ev)]
+    assert spoken.count("RECOVERING") <= 1  # the latch: no second "wait · recheck"
+    # First PULL_OVER + its one repeat, then (drove off unacknowledged, still < 90) the returned
+    # PULL_OVER + its one repeat. Without the fix this was a spoken flip every minute.
+    assert spoken.count("PULL_OVER") <= 4
