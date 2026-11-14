@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "description": "LowSight glasses HUD (Meta Ray-Ban Display web app) built on the Wearables UI Toolkit.",
   "type": "module",
+  "engines": {
+    "node": ">=24.15.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

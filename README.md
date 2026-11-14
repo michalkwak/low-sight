@@ -22,22 +22,30 @@ Full spec: [LOWSIGHT_BUILD_PLAN.md](LOWSIGHT_BUILD_PLAN.md). Task list: [TODO.md
 | M1: synthetic scenarios, ReplaySource, baseline forecaster, `/ws/state`, ambient HUD | ✅ (not yet checked in a simulator) |
 | Phone companion: trip detection, driver/passenger context, speaks + notifies alerts | ✅ (`/phone`, `/api/phone`) |
 | M2: alert engine (all 5 levels, dedupe, hysteresis, ack) + tests + control panel | ✅ |
-| M3: seat check: camera page, `/ws/frames`, CLIP detector, `eval_vision.py` | code ✅; the CLIP model is **untested** (vision deps not installed) and there are no labelled frames yet |
+| M3: seat check: camera page, `/ws/frames`, CLIP detector, `eval_vision.py` | Implemented; a reported run found 4/4 driver matches on a small public-photo prompt check. This is not a representative accuracy metric; labelled project footage is still needed. |
 | M4: PRE_DRIVE (seat check and trip start), RECOVERING countdown, stage audio, PULL_OVER repeat | ✅ (audio uses `speechSynthesis`; no mp3s, see TODO) |
 | M5: polish and numbers | partly: forecast floor, stale states, Meta metadata and fluid layout done; legibility, device checks and numbers need people and hardware |
 | M6–M7 | not started |
 
+The experimental React HUD in `web/hud-app/` has source and tests, but it is not the app served at `/hud/`; the plain HUD remains the active implementation. Its locked JavaScript toolchain requires Node 24.15 or newer (see `web/hud-app/.nvmrc`).
+
 ## Running it
 
 ```bash
-python -m venv .venv
-# Windows:  .venv\Scripts\activate      macOS/Linux:  source .venv/bin/activate
-pip install -r requirements.txt          # core only
-pip install torch open_clip_torch pillow # optional, for the real seat check (large; ~600 MB of weights on first use)
-python scripts/make_scenarios.py         # writes data/scenarios/*.csv (already committed)
-uvicorn backend.app:app --port 8000
+uv sync --group dev                       # backend and test dependencies
+uv sync --extra vision --group dev        # also install CLIP vision dependencies
+uv run python scripts/make_scenarios.py  # writes data/scenarios/*.csv (already committed)
+uv run uvicorn backend.app:app --port 8000
 cloudflared tunnel --url http://localhost:8000   # → https://<random>.trycloudflare.com
 ```
+
+`requirements.txt` remains available as a pip-compatible dependency list; `pyproject.toml` and
+`uv.lock` are the supported uv setup. The vision extra installs large packages and downloads
+model weights on first use. The React HUD has a separate Node setup: run `nvm install` and
+`nvm use` in `web/hud-app/` (which reads `.nvmrc`), then run `npm ci`, `npm test`, and
+`npm run build` there.
+The lockfile's dependencies require Node 24.15 or newer; the React HUD remains experimental and
+is not served at `/hud/`.
 
 1. Open `https://<tunnel>/control/` on the laptop. On the phone paired with the glasses, open
    `https://<tunnel>/phone/` and tap **Start** (keep it in front; it holds a wake lock). Open
@@ -87,7 +95,7 @@ and run `python scripts/eval_vision.py`.
 
 ### Tests
 ```bash
-pytest -q
+uv run --group dev pytest -q
 ```
 
 ## Layout

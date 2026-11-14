@@ -47,8 +47,8 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 
 ## 3. M3: seat check (vision)
 
-- [ ] Ask the team before installing `torch`, `open_clip_torch` and `pillow` (large downloads); then uncomment them in `requirements.txt`.
-- [x] `backend/vision/clip_detector.py`: CLIP ViT-B-32 zero-shot with driver, passenger and other prompt groups → `p_driver`. **Written but not run yet** (needs the deps above).
+- [x] Vision dependencies are listed in `requirements.txt`; the uv install is `uv sync --extra vision --group dev` (large downloads).
+- [x] `backend/vision/clip_detector.py`: CLIP ViT-B-32 zero-shot with driver, passenger and other prompt groups → `p_driver`. A reported run and prompt update moved the public-photo driver examples from 2/4 to 4/4; this is not a representative accuracy result.
   - [x] Downscale to 224 px; skip a frame if the previous one is still processing (never queue).
 - [x] Wire the detector into `/ws/frames` for binary JPEG frames.
 - [x] `web/camera/`: build the page.
@@ -59,7 +59,7 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 - [x] HUD: show "Driver seat ✓" / "Passenger seat" when the check decides ("Checking seat…" while frames arrive).
 - [ ] Record labelled footage in a parked car: driver's seat, passenger seat, plus indoor clips. Put frames in `data/vision/{driver,passenger,other}/` (gitignored).
 - [x] `scripts/eval_vision.py`: accuracy and confusion matrix on ~50 labelled frames. **Run it once the footage exists: this number goes on a pitch slide.**
-- [ ] **Done when:** pointing at a steering wheel (or the POV video) confirms "driver" within about 3–5 s, and passenger or indoor frames don't. (The smoothing decides in ~3.1 s on steady scores.)
+- [ ] **Done when:** pointing at a steering wheel (or the POV video) confirms "driver" within about 3–5 s, and passenger or indoor frames don't. A reported run found ~3.1 s on steady scores and indoor frames now resolve to "can't tell"; real parked-car passenger and indoor footage still needs validation.
 
 ## 4. M4: full hands-free flow
 
@@ -72,6 +72,8 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 - [ ] **Done when:** the full scenario runs with no one touching anything: the phone detects the trip and speaks the alerts. (Needs a real phone run.)
 
 ## 5. M5: polish and numbers
+
+- [ ] Experimental React HUD: source and 13 tests exist under `web/hud-app/`, but it is not served at `/hud/`. Use Node 24.15+ (`.nvmrc`) for `npm ci`, `npm test` and `npm run build`; this checkout's Node 20.11 cannot run its locked toolchain.
 
 - [ ] HUD legibility in the simulator at Medium size over the **brightest** background; fix contrast and sizes.
 - [ ] HUD shows useful state within 1 s of opening (sessions are short). The first load is ~15 KB in 4 requests (Meta's budget: under 300 KB and 15 requests), and the server pushes state on connect; time it on the glasses.

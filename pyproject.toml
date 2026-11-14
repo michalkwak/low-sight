@@ -1,0 +1,23 @@
+[project]
+name = "lowsight"
+version = "0.1.0"
+description = "Eyes-up hypoglycaemia alerts for drivers with type 1 diabetes"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "numpy",
+    "pandas",
+    "pydantic",
+    "pydantic-settings",
+]
+
+[project.optional-dependencies]
+vision = ["torch", "open-clip-torch", "pillow"]
+
+[dependency-groups]
+dev = ["pytest", "httpx"]
+
+[tool.uv]
+package = false

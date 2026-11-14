@@ -1,0 +1,28 @@
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 4
+
+[agents.explorer]
+description = "Explore and understand the repository before implementation."
+config_file = "agents/explorer.toml"
+
+[agents.developer]
+description = "Implement requested features and fix bugs."
+config_file = "agents/developer.toml"
+
+[agents.tester]
+description = "Independently test implementations and identify regressions."
+config_file = "agents/tester.toml"
+
+[agents.code-reviewer]
+description = "Review code quality, architecture and maintainability."
+config_file = "agents/code-reviewer.toml"
+
+[agents.security-reviewer]
+description = "Identify security vulnerabilities and unsafe practices."
+config_file = "agents/security-reviewer.toml"
+
+[agents.documentation]
+description = "Maintain accurate project and API documentation."
+config_file = "agents/documentation.toml"
