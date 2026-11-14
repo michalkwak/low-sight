@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LowSight HUD · dev</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    /* Developer page: drive the glasses HUD by hand to check layout and animation.
+       The HUD runs unchanged in the iframe (/hud/?dev) and gets its state from here. */
+    :root {
+      --bg: #101114; --panel: #17191d; --line: #2a2d33; --fg: #e8eaed; --dim: #8b929b;
+      --accent: #8ad34a; --rise: #ff9f2e; --fall: #ff4a3d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg);
+      font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      display: flex; flex-wrap: wrap; gap: 28px; padding: 28px; align-items: flex-start; justify-content: center;
+    }
+    .stage { flex: 0 1 600px; }
+    .frame { position: relative; width: 100%; aspect-ratio: 1; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: #000; }
+    .frame iframe { position: absolute; left: 0; top: 0; width: 600px; height: 600px; border: 0; transform-origin: 0 0; }
+    .hint { color: var(--dim); font-size: 13px; margin-top: 10px; }
+    .hint kbd { font: inherit; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+
+    .panel { flex: 1 1 340px; max-width: 440px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 20px 20px; }
+    h1 { font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 14px 0 0; }
+    section { padding: 16px 0; border-bottom: 1px solid var(--line); }
+    section:last-child { border-bottom: 0; padding-bottom: 0; }
+    .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    label { font-weight: 600; }
+    output { font-variant-numeric: tabular-nums; font-weight: 600; }
+    output small { color: var(--dim); font-weight: 500; }
+    input[type=range] { width: 100%; margin: 12px 0 4px; accent-color: var(--accent); }
+    .scale { display: flex; justify-content: space-between; color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+    #trend { accent-color: var(--fg); }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    button {
+      font: inherit; font-weight: 600; color: var(--fg); background: transparent;
+      border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; cursor: pointer;
+    }
+    button:hover { border-color: var(--dim); }
+    button[aria-pressed=true] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+    .chips.trend button { min-width: 40px; font-size: 17px; padding: 4px 8px; }
+    .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin-top: 12px; }
+    .toggles label { font-weight: 500; display: flex; gap: 8px; align-items: center; }
+    .note { color: var(--dim); font-size: 13px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="frame" id="frame"><iframe id="hud" src="./?dev" title="Glasses HUD (600×600)"></iframe></div>
+    <p class="hint">The glasses view at 600×600. Click it, then <kbd>←</kbd> <kbd>→</kbd> switch views and <kbd>Enter</kbd> acknowledges the alert.</p>
+  </div>
+
+  <main class="panel">
+    <h1>Developer controls</h1>
+
+    <section>
+      <div class="row"><label for="glucose">Glucose</label><output id="glucose-out"></output></div>
+      <input id="glucose" type="range" min="2" max="22" step="0.1" value="7.2">
+      <div class="scale"><span>2.0</span><span>3.9 low</span><span>10</span><span>22 mmol/L</span></div>
+    </section>
+
+    <section>
+      <div class="row"><label for="trend">Trend</label><output id="trend-out"></output></div>
+      <input id="trend" type="range" min="-4" max="4" step="0.05" value="0">
+      <div class="scale"><span>−4 falling</span><span>0</span><span>rising +4 mg/dL/min</span></div>
+      <div class="chips trend" id="trend-presets">
+        <button data-v="-3.5" title="Falling fast">⇊</button>
+        <button data-v="-2.5" title="Falling">↓</button>
+        <button data-v="-1.5" title="Falling slowly">↘</button>
+        <button data-v="0" title="Steady">→</button>
+        <button data-v="1.5" title="Rising slowly">↗</button>
+        <button data-v="2.5" title="Rising">↑</button>
+        <button data-v="3.5" title="Rising fast">⇈</button>
+      </div>
+      <div class="toggles">
+        <label><input type="checkbox" id="sweep"> Sweep trend</label>
+        <label><input type="checkbox" id="simulate"> New reading every 2 s</label>
+      </div>
+      <p class="note">Sweep swings the trend from falling to rising and back. New readings move the number by trend × 5 min, like a CGM.</p>
+    </section>
+
+    <section>
+      <label>Alert</label>
+      <div class="chips" id="alerts">
+        <button data-v="NONE">None</button>
+        <button data-v="LOW_SOON">Low soon</button>
+        <button data-v="PRE_DRIVE">Pre-drive</button>
+        <button data-v="PULL_OVER">Pull over</button>
+        <button data-v="RECOVERING">Recovering</button>
+      </div>
+      <div class="toggles"><label><input type="checkbox" id="acked"> Acknowledged</label></div>
+    </section>
+
+    <section>
+      <label>Context</label>
+      <div class="chips" id="seat">
+        <button data-v="driver">Driver</button>
+        <button data-v="passenger">Passenger</button>
+        <button data-v="none">Not in car</button>
+      </div>
+      <div class="chips" id="data">
+        <button data-v="live">Live data</button>
+        <button data-v="stale">20 min old</button>
+        <button data-v="none">No data</button>
+      </div>
+      <div class="chips" id="units">
+        <button data-v="mmol">mmol/L</button>
+        <button data-v="mgdl">mg/dL</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  (() => {
+    const $ = (id) => document.getElementById(id);
+    const hud = $("hud");
+    const s = {
+      glucose: 7.2, trend: 0, alert: "NONE", acked: false, seat: "driver", data: "live",
+      units: "mmol", alertId: 0, recoverUntil: null,
+    };
+    const ALERTS = {
+      LOW_SOON: ["LOW IN ~20 MIN", "Plan a stop"],
+      PRE_DRIVE: ["CHECK BEFORE DRIVING", "Treat before you set off"],
+      PULL_OVER: ["PULL OVER", "Stop safely · take fast carbs"],
+      RECOVERING: ["WAIT · RECHECK", "Recheck now"],
+    };
+    const WORDS = { "⇊": "falling fast", "↓": "falling", "↘": "falling slowly", "→": "steady",
+      "↗": "rising slowly", "↑": "rising", "⇈": "rising fast" };
+
+    // Same thresholds as the backend's trend arrow (mg/dL/min).
+    const arrowFor = (t) => t <= -3 ? "⇊" : t <= -2 ? "↓" : t <= -1 ? "↘" : t < 1 ? "→" : t < 2 ? "↗" : t < 3 ? "↑" : "⇈";
+    const clampMg = (v) => Math.max(40, Math.min(400, v));
+
+    function buildState() {
+      const now = Date.now();
+      const mgdl = s.glucose * 18;
+      const live = s.data === "live";
+      const iso = (ms) => new Date(ms).toISOString();
+      const readingT = s.data === "stale" ? now - 20 * 60e3 : now;
+      const history = [];
+      for (let i = 36; i >= 0; i--) {
+        const ago = i * 5;
+        history.push({ t: iso(readingT - ago * 60e3), mgdl: clampMg(mgdl - s.trend * Math.min(ago, 30)) });
+      }
+      const mean = [10, 20, 30].map((h) => clampMg(mgdl + s.trend * h * 0.9));
+      const band = [6, 12, 20];
+      const driving = s.seat === "driver"
+        ? { driving: true, in_vehicle: true, role: "driver" }
+        : s.seat === "passenger"
+          ? { driving: false, in_vehicle: true, role: "passenger" }
+          : { driving: false, in_vehicle: false, role: "unknown" };
+      const [title, line] = ALERTS[s.alert] || ["", ""];
+      return {
+        now: iso(now),
+        reading: s.data === "none" ? null : { t: iso(readingT), mgdl },
+        trend_mgdl_min: s.trend,
+        arrow: arrowFor(s.trend),
+        forecast: live ? {
+          t0: iso(now), horizons_min: [10, 20, 30], mean,
+          lo: mean.map((m, i) => clampMg(m - band[i])), hi: mean.map((m, i) => clampMg(m + band[i])),
+        } : null,
+        driving: { ...driving, seat_checking: false, source: "forced" },
+        alert: {
+          level: s.alert, title, line, speak: null, spoken: true, acked: s.acked,
+          id: s.alert === "NONE" ? "" : `dev-${s.alertId}`, since: iso(now),
+          until: s.alert === "RECOVERING" ? iso(s.recoverUntil) : null,
+        },
+        history,
+        units: s.units,
+      };
+    }
+
+    function push() {
+      hud.contentWindow.postMessage({ type: "lowsight-dev-state", state: buildState() }, location.origin);
+      paint();
+    }
+
+    function paint() {
+      $("glucose").value = s.glucose;
+      $("trend").value = s.trend;
+      const mg = Math.round(s.glucose * 18);
+      $("glucose-out").innerHTML = `${s.glucose.toFixed(1)} mmol/L <small>${mg} mg/dL</small>`;
+      const a = arrowFor(s.trend);
+      $("trend-out").innerHTML = `${a} ${s.trend > 0 ? "+" : ""}${s.trend.toFixed(2)} <small>${WORDS[a]}</small>`;
+      $("acked").checked = s.acked;
+      const press = (group, v) => document.querySelectorAll(`#${group} button`).forEach((b) =>
+        b.setAttribute("aria-pressed", String(b.dataset.v === v)));
+      press("alerts", s.alert);
+      press("seat", s.seat);
+      press("data", s.data);
+      press("units", s.units);
+      document.querySelectorAll("#trend-presets button").forEach((b) =>
+        b.setAttribute("aria-pressed", String(Math.abs(+b.dataset.v - s.trend) < 0.001)));
+    }
+
+    // ---- inputs ----
+    $("glucose").addEventListener("input", (e) => { s.glucose = +e.target.value; push(); });
+    $("trend").addEventListener("input", (e) => { s.trend = +e.target.value; stopSweep(); push(); });
+    $("trend-presets").addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      s.trend = +b.dataset.v; stopSweep(); push();
+    });
+    $("alerts").addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      if (b.dataset.v !== s.alert) {
+        s.alert = b.dataset.v; s.alertId++; s.acked = false;
+        s.recoverUntil = Date.now() + 15 * 60e3;
+      }
+      push();
+    });
+    $("acked").addEventListener("change", (e) => { s.acked = e.target.checked; push(); });
+    for (const group of ["seat", "data", "units"]) {
+      $(group).addEventListener("click", (e) => {
+        const b = e.target.closest("button"); if (!b) return;
+        s[group] = b.dataset.v; push();
+      });
+    }
+
+    // Sweep: trend follows a slow sine from −3.5 to +3.5, stepped like CGM readings.
+    let sweepTimer = null, sweepT0 = 0;
+    $("sweep").addEventListener("change", (e) => {
+      if (e.target.checked) {
+        sweepT0 = performance.now() - 12000 * (Math.asin(Math.max(-1, Math.min(1, s.trend / 3.5))) / (2 * Math.PI));
+        sweepTimer = setInterval(() => {
+          const ph = ((performance.now() - sweepT0) / 12000) * 2 * Math.PI;
+          s.trend = Math.round(3.5 * Math.sin(ph) * 20) / 20;
+          push();
+        }, 1500);
+      } else stopSweep();
+    });
+    function stopSweep() { clearInterval(sweepTimer); sweepTimer = null; $("sweep").checked = false; }
+
+    // Simulated readings: every 2 s the value moves by trend × 5 min.
+    let simTimer = null;
+    $("simulate").addEventListener("change", (e) => {
+      clearInterval(simTimer);
+      if (e.target.checked) simTimer = setInterval(() => {
+        s.glucose = Math.max(2, Math.min(22, Math.round((s.glucose + (s.trend * 5) / 18) * 10) / 10));
+        push();
+      }, 2000);
+    });
+
+    // HUD → dev page: ready to receive, or Enter pressed (acknowledge).
+    window.addEventListener("message", (e) => {
+      if (e.origin !== location.origin || !e.data) return;
+      if (e.data.type === "lowsight-dev-ready") push();
+      if (e.data.type === "lowsight-dev-ack") { s.acked = true; push(); }
+    });
+    // Keep the RECOVERING countdown and "x min ago" ticking.
+    setInterval(push, 1000);
+
+    // Scale the 600×600 HUD to fit the frame.
+    const fit = () => { hud.style.transform = `scale(${$("frame").clientWidth / 600})`; };
+    new ResizeObserver(fit).observe($("frame"));
+    paint();
+  })();
+  </script>
+</body>
+</html>

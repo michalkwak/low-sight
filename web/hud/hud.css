@@ -7,6 +7,10 @@
   --red: #ff5a36;
   --cyan: #3ee6c1;
   --grey: #8a8a8a;
+  /* Trend wedges, after the sketch: orange rising, green steady, red falling. */
+  --rise: #ff9f2e;
+  --steady: #8ad34a;
+  --fall: #ff4a3d;
   --pad: 28px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -21,38 +25,69 @@ body {
 
 .view { position: absolute; inset: 0; padding: var(--pad); }
 
-/* Glucose readout: top right */
-.readout { position: absolute; top: var(--pad); right: var(--pad); width: min(320px, calc(100% - 2 * var(--pad))); text-align: right; }
-.value-row { display: flex; justify-content: flex-end; align-items: baseline; gap: 12px; }
-.value { font-size: 120px; line-height: 1; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
-.arrow { font-size: 84px; line-height: 1; }
-.meta-row { display: flex; justify-content: flex-end; gap: 14px; margin-top: 6px; }
-.unit, .age { font-size: 28px; color: var(--dim); }
-.stale .value, .stale .arrow { color: var(--grey); }
+/* Glucose gauge: number in a ring, one trend spike orbiting it. 1 SVG unit = 1 px at 600 wide. */
+.gauge {
+  position: absolute; left: 50%; top: 34px; transform: translateX(-50%);
+  width: min(282px, calc(100% - 2 * var(--pad))); height: auto; overflow: visible;
+}
+/* Dotted path the spike's tip rides along, from straight up to straight down. */
+.gauge .track { fill: none; stroke: var(--dim); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 0 11; opacity: .45; }
+/* Angle and colour are set every animation frame by hud.js. */
+.gauge .spike {
+  fill: none; stroke: var(--steady); stroke-width: 5.5; stroke-linecap: round; stroke-linejoin: round;
+  transition: opacity .45s ease;
+}
 
-.spark { width: 100%; height: 110px; margin-top: 14px; }
+.gauge .mask { fill: #000; }
+.gauge .ring { fill: none; stroke: var(--fg); stroke-width: 5; transition: stroke .45s ease; }
+.gauge text { fill: var(--fg); text-anchor: middle; dominant-baseline: central; font-variant-numeric: tabular-nums; }
+.gauge .value { font-size: 72px; font-weight: 700; letter-spacing: -2.5px; }
+.gauge .value.long { font-size: 62px; } /* "10.4", "22.2": keep clear of the ring */
+.gauge .unit { font-size: 28px; font-weight: 600; fill: var(--dim); letter-spacing: .5px; }
+
+/* The ring takes the alert's colour, so the state reads even at a glance. */
+.gauge[data-alert="LOW_SOON"] .ring, .gauge[data-alert="PRE_DRIVE"] .ring { stroke: var(--amber); }
+.gauge[data-alert="PULL_OVER"] .ring { stroke: var(--red); animation: ring-pulse 1.2s ease-in-out infinite; }
+.gauge[data-alert="PULL_OVER"].acked .ring { animation: none; }
+.gauge[data-alert="RECOVERING"] .ring { stroke: var(--cyan); }
+@keyframes ring-pulse { 50% { stroke-opacity: .35; } }
+
+/* No trend (sensor gap, stale value, lost connection): greyed out, spike faded away. */
+:is(.gauge.stale, #hud.stale .gauge) .spike { opacity: 0; }
+:is(.gauge.stale, #hud.stale .gauge) .ring { stroke: var(--grey); animation: none; }
+:is(.gauge.stale, #hud.stale .gauge) .value { fill: var(--grey); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gauge .spike, .gauge .ring { transition: none; }
+  .gauge[data-alert="PULL_OVER"] .ring { animation: none; }
+}
+
+.context { position: absolute; top: var(--pad); left: var(--pad); }
+
+.spark { width: 100%; height: 110px; margin-bottom: 24px; }
 .spark .line { fill: none; stroke: var(--dim); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .spark .fc { fill: none; stroke: var(--fg); stroke-width: 2; stroke-dasharray: 4 5; vector-effect: non-scaling-stroke; }
 .spark .band { fill: rgba(255, 255, 255, 0.12); stroke: none; }
 .spark .low { stroke: var(--red); stroke-width: 1; stroke-dasharray: 2 6; opacity: .7; vector-effect: non-scaling-stroke; }
 
-.badge { margin-top: 10px; font-size: 28px; color: var(--cyan); }
+.badge { font-size: 28px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--cyan); }
 .badge.passenger { color: var(--dim); }
-.seat { margin-top: 6px; font-size: 28px; color: var(--cyan); }
+.seat { margin-top: 4px; font-size: 28px; font-weight: 600; color: var(--cyan); }
 .seat.passenger, .seat.checking { color: var(--dim); }
+.age { margin-top: 4px; font-size: 28px; font-weight: 600; color: var(--grey); }
 
-/* Alert banner: outline only, no big fills */
+/* Alert: a coloured rule and type, no filled box. */
 .banner {
-  position: absolute; left: var(--pad); right: var(--pad); bottom: 60px;
-  border: 4px solid var(--amber); border-radius: 18px; padding: 18px 22px;
+  position: absolute; left: var(--pad); right: var(--pad); bottom: 46px;
+  border-top: 4px solid var(--amber); padding-top: 14px;
   color: var(--amber);
 }
-.banner-title { font-size: 56px; line-height: 1.05; }
-.banner-line { font-size: 32px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.banner-title { font-size: 52px; line-height: 1.05; letter-spacing: -.5px; }
+.banner-line { font-size: 30px; font-weight: 600; margin-top: 6px; font-variant-numeric: tabular-nums; }
 .banner.PULL_OVER { border-color: var(--red); color: var(--red); animation: pulse 1.2s ease-in-out infinite; }
 .banner.RECOVERING { border-color: var(--cyan); color: var(--cyan); }
 .banner.acked { animation: none; }
-@keyframes pulse { 50% { border-color: rgba(255, 90, 54, 0.35); } }
+@keyframes pulse { 50% { border-color: rgba(255, 90, 54, 0.3); } }
 @media (prefers-reduced-motion: reduce) { .banner.PULL_OVER { animation: none; } }
 
 /* Other views */
@@ -63,7 +98,7 @@ body {
 .about.small { font-size: 28px; }
 .dim { color: var(--dim); }
 
-.status { position: absolute; left: var(--pad); top: var(--pad); font-size: 28px; color: var(--grey); }
+.status { position: absolute; right: var(--pad); top: var(--pad); font-size: 28px; color: var(--grey); }
 
 .dots { position: absolute; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; }
 .dots i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--dim); }

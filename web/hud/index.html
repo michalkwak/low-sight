@@ -18,24 +18,31 @@
         <div id="banner-title" class="banner-title"></div>
         <div id="banner-line" class="banner-line"></div>
       </div>
-      <div class="readout">
-        <div class="value-row">
-          <span id="value" class="value">--</span>
-          <span id="arrow" class="arrow"></span>
-        </div>
-        <div class="meta-row">
-          <span id="unit" class="unit">mmol/L</span>
-          <span id="age" class="age"></span>
-        </div>
-        <svg id="spark" class="spark" viewBox="0 0 300 110" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="context">
         <div id="badge" class="badge hidden"></div>
         <div id="seat" class="seat hidden"></div>
+        <div id="age" class="age hidden"></div>
       </div>
+
+      <!-- Glucose in a ring, with one trend spike orbiting it. The spike points the way glucose
+           is heading: right = steady, up toward 12 o'clock = rising, down toward 6 = falling,
+           like a CGM arrow. hud.js eases its angle and colour between readings.
+           Ring radius 80, spike tip on the dotted track at radius 180, centre 0,0. -->
+      <svg id="gauge" class="gauge" viewBox="-86 -196 282 392" role="img" aria-labelledby="gauge-label">
+        <title id="gauge-label">Glucose</title>
+        <path class="track" d="M 0 -180 A 180 180 0 0 1 0 180" />
+        <path id="spike" class="spike" d="M 27.4 -75.2 L 180 0 L 27.4 75.2" />
+        <circle class="mask" r="80" />
+        <circle id="ring" class="ring" r="80" />
+        <text id="value" class="value" y="-8">--</text>
+        <text id="unit" class="unit" y="38">mmol/L</text>
+      </svg>
     </section>
 
     <!-- View 1: Forecast detail -->
     <section class="view hidden" data-view="forecast">
       <div class="view-title">Forecast</div>
+      <svg id="spark" class="spark" viewBox="0 0 300 110" preserveAspectRatio="none" aria-hidden="true"></svg>
       <div id="fc-rows" class="fc-rows"></div>
     </section>
 
