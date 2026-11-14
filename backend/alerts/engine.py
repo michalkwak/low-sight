@@ -13,6 +13,10 @@ Levels, highest priority first ("driving" = in_vehicle and role != "passenger"):
               check confirms the driver or a trip starts (not for a confirmed passenger).
   LOW_SOON    driving, reading >= LOW and the +30 min forecast < LOW (or its lower
               bound < LOW with the mean < LOW + 10). "Low in ~N min".
+              A confirmed passenger in the car gets LOW_SOON (never PULL_OVER) for both
+              the LOW_SOON and the PULL_OVER conditions, worded for someone who isn't
+              driving ("Treat when you can"). A wrong "passenger" from the seat check
+              therefore softens the wording but never silences the warning.
   RECOVERING  after an acknowledged PULL_OVER once glucose is rising: wait
               RECOVER_WAIT_MIN, recheck. Clears at >= DRIVE_MIN with a flat or rising trend.
   NONE        otherwise.
@@ -20,7 +24,8 @@ Levels, highest priority first ("driving" = in_vehicle and role != "passenger"):
 Behaviour:
   - Escalation is immediate. Dropping a level needs its glucose condition to be false
     for HYSTERESIS_READINGS consecutive new readings, so noise around 70 can't flap.
-    Leaving the car, or a confirmed passenger, drops the driving-only levels at once.
+    Leaving the car drops the driving-only levels at once; a confirmed passenger turns
+    PULL_OVER into the passenger LOW_SOON at once.
   - Each level is spoken at most once per episode. An episode ends after its condition
     has been false for EPISODE_GAP_MIN. A silent alert has ``speak = None``.
   - Every alert gets a fresh ``id``, so the phone speaks and notifies it exactly once.
@@ -47,7 +52,15 @@ SPEAK = {
     "PRE_DRIVE": "Before you drive: your glucose is low or dropping. Treat it first.",
     "LOW_SOON": "Heads up: you may go low in about {n} minutes. Plan a stop.",
     "RECOVERING": "Glucose is rising. Wait {n} minutes and recheck before you drive on.",
+    # A confirmed passenger: same warning, no driving instructions.
+    "PASSENGER_SOON": "Heads up: you may go low in about {n} minutes. Treat it when you can.",
+    "PASSENGER_LOW": "Your glucose is low. Treat it when you can.",
 }
+
+
+def _passenger(d: DrivingState) -> bool:
+    """In the car with the seat check saying passenger (not driving)."""
+    return d.in_vehicle and d.role == "passenger"
 
 
 @dataclass
@@ -146,7 +159,12 @@ def _texts(level: str, s: EngineState, inp: EngineInputs, now: datetime) -> tupl
     if level == "PRE_DRIVE":
         return "CHECK BEFORE DRIVING", "Treat before you set off", SPEAK["PRE_DRIVE"]
     if level == "LOW_SOON":
+        passenger = _passenger(inp.driving)
+        if passenger and inp.reading is not None and inp.reading.mgdl < settings.LOW:
+            return "LOW GLUCOSE", "Treat when you can", SPEAK["PASSENGER_LOW"]
         n = minutes_to_low(inp.reading, inp.forecast, now) if inp.forecast and inp.reading else settings.LOW_SOON_HORIZON
+        if passenger:
+            return f"LOW IN ~{n} MIN", "Treat when you can", SPEAK["PASSENGER_SOON"].format(n=n)
         return f"LOW IN ~{n} MIN", "Plan a stop", SPEAK["LOW_SOON"].format(n=n)
     if level == "RECOVERING":
         wait = f"{settings.RECOVER_WAIT_MIN:g}"
@@ -232,8 +250,9 @@ def evaluate(prev: EngineState, inp: EngineInputs, now: datetime) -> tuple[Engin
     else:
         s.pre_driving_since = None
 
+    passenger = _passenger(d)
     pull_active = d.driving and (s.held["PULL_OVER"] or s.pre_escalated)
-    soon_active = d.driving and s.held["LOW_SOON"]
+    soon_active = (d.driving and s.held["LOW_SOON"]) or (passenger and (s.held["LOW_SOON"] or s.held["PULL_OVER"]))
 
     # 4. While recovering: fell again → PULL_OVER; recovered → NONE; otherwise wait.
     if s.recovering:
@@ -253,7 +272,7 @@ def evaluate(prev: EngineState, inp: EngineInputs, now: datetime) -> tuple[Engin
     raw = {
         "PULL_OVER": d.driving and (glu["PULL_OVER"] or s.pre_escalated),
         "PRE_DRIVE": s.pre_armed and pre_context and glu["PRE_DRIVE"],
-        "LOW_SOON": d.driving and glu["LOW_SOON"],
+        "LOW_SOON": (d.driving and glu["LOW_SOON"]) or (passenger and (glu["LOW_SOON"] or glu["PULL_OVER"])),
     }
     gap = timedelta(minutes=settings.EPISODE_GAP_MIN)
     for lvl, on in raw.items():
