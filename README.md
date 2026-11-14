@@ -6,11 +6,22 @@ driver, and audio warns you with your eyes up.** LowSight watches the CGM trend 
 forecast and gives escalating, audio-first alerts: **Low soon**, **Pull over**, and a **pre-drive check**.
 
 Glasses sessions last at most 3 minutes and only the wearer can start them, so the phone does the
-always-on work: it detects the trip, speaks alerts (heard through the glasses speakers) and sends
-notifications (shown on the glasses display). The glasses camera does a one-off seat check when the
-wearer opens LowSight.
+always-on work: it detects the trip and speaks alerts, which are heard through the glasses speakers (verified on
+real glasses). Display notifications from a browser page didn't reach the glasses in testing; a native phone app is
+the path for those. The glasses camera does a one-off seat check when the wearer opens LowSight.
 
 > **Not medical advice.** LowSight is decision support. It never suggests insulin doses.
+
+**Try it:** the site root opens a start page with links to everything; the simulator (`/control/`) plays a
+story in about a minute. The free Render plan can't run the camera's vision model (size limits), so run the
+project locally for the real camera seat check.
+
+![The LowSight simulator during a PULL OVER: one-click stories, driver actions, live blood sugar and forecast chart, and the glasses view blended over a road](docs/images/simulator.jpg)
+
+<p>
+  <img src="docs/images/start-page.jpg" alt="The start page: what LowSight is, a one-minute walkthrough and links to every page" width="68%">
+  <img src="docs/images/simulator-phone.jpg" alt="The simulator on a phone" width="24%">
+</p>
 
 Full spec: [LOWSIGHT_BUILD_PLAN.md](LOWSIGHT_BUILD_PLAN.md). Task list: [TODO.md](TODO.md).
 
@@ -62,14 +73,23 @@ model weights on first use. On Windows, install the tunnel with `winget install 
 Locally, without a tunnel: http://localhost:8000/hud/, /control/, /phone/ and /camera/. (GPS, the camera and
 notifications on a real phone need HTTPS, so use the tunnel for those.)
 
+### Start page and simulator
+The site root (`/`) opens the **start page** (`/start/`): what LowSight is, a one-minute walkthrough, and links to
+every page. Send judges there. The **simulator** (`/control/`) has one-click stories (glucose drops while driving,
+low before driving, treat and recover, passenger, normal drive), each with "what to expect"; driver actions
+(acknowledge, "I'm the driver / a passenger", sound); plain-language status; and a live, muted preview of the
+glasses view (`/hud/?mute`; the simulator page speaks the alerts itself). The operator controls (scenario, clock,
+jumps, in-car and seat overrides, units, event log) are under **Advanced controls**.
+
 ### Demo flow (plan §11)
-- **Pre-drive:** scenario `low_before_drive`, then a seat check on `/camera/` (or **Seat: Driver** on the
-  control panel). The HUD shows "Driver seat ✓" and **CHECK BEFORE DRIVING**.
-- **Low soon → pull over:** scenario `falling_while_driving`, **In car: On** (or the phone's "Connected to
-  car"), then **Jump to −20 min before crossing**: LOW_SOON at the 50-min reading, PULL_OVER at 60. (The
-  −5 min jump lands on PULL_OVER directly.) Enter on the HUD acknowledges; `treated_recovery` shows
+- **Pre-drive:** the story "Already low before driving", or scenario `low_before_drive` and a seat check on
+  `/camera/` (local only, see below). The HUD shows "Driver seat ✓" and **CHECK BEFORE DRIVING**.
+- **Low soon → pull over:** the story "Glucose drops while driving": LOW_SOON at the 50-min reading, PULL_OVER at
+  60. Acknowledge with Enter on the HUD or the simulator's button; "Treat and recover" then shows
   **WAIT · RECHECK** with a countdown once glucose rises.
-- **Stage audio** on the control panel speaks alerts through the laptop, so the room hears them.
+- **Sound** on the simulator speaks alerts through the laptop, so the room hears them.
+- **Camera seat check:** only when running locally. The free version of Render can't hold the vision model (size
+  limits), so on the hosted site use the camera page's simulate buttons or "I'm the driver".
 
 ### HUD
 The glucose view shows the value inside a ring. A **trend spike** orbits the ring like a CGM arrow:

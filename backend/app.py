@@ -173,7 +173,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.get("/")
 def root():
-    return RedirectResponse("/hud/")
+    """Start page for visitors and judges: what LowSight is, plus links to every page.
+    The glasses use /hud/ directly."""
+    return RedirectResponse("/start/")
 
 
 @app.get("/llms.txt")
@@ -377,5 +379,5 @@ async def ws_frames(ws: WebSocket):
             await ws.close()
 
 
-for name in ("hud", "control", "camera", "phone"):
+for name in ("start", "hud", "control", "camera", "phone"):
     app.mount(f"/{name}", StaticFiles(directory=settings.WEB_DIR / name, html=True), name=name)

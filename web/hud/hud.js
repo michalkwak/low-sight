@@ -8,6 +8,8 @@
   // Dev mode (/hud/?dev, embedded by /hud/dev.html): state comes from the dev page's
   // sliders via postMessage instead of the backend.
   const DEV = new URLSearchParams(location.search).has("dev");
+  // Muted (/hud/?mute, the simulator page's preview): that page speaks alerts itself.
+  const MUTE = new URLSearchParams(location.search).has("mute");
   const PHONE_GRACE_MS = 2500; // the phone is the main audio path: give it time to report it spoke
   const SEAT_SHOW_MS = 6000; // how long "Driver seat ✓" stays after the check decides
   let view = 0;
@@ -278,6 +280,7 @@
   }
 
   function speakHere(a) {
+    if (MUTE) return;
     // speechSynthesis is supported on Meta Ray-Ban Display web apps (one en-US voice).
     if ("speechSynthesis" in window && "SpeechSynthesisUtterance" in window) {
       speechSynthesis.cancel(); // a newer alert replaces anything still being said

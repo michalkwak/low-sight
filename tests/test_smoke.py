@@ -38,3 +38,16 @@ def test_phone_signal_and_seat_frames():
         # the smoothed score must still be high.
         assert r["p_driver"] > 0.9
         c.post("/api/control", json={"reset": True})
+
+
+def test_start_page_simulator_and_muted_preview():
+    with TestClient(app) as c:
+        r = c.get("/", follow_redirects=False)
+        assert r.status_code in (302, 307) and r.headers["location"] == "/start/"
+        start = c.get("/start/").text
+        for link in ("/control/", "/hud/", "/phone/", "/camera/", "/hud/dev.html", "github.com/michalkwak/low-sight"):
+            assert link in start, link
+        assert "free version of Render" in start  # judges are told the camera needs a local run
+        sim = c.get("/control/").text
+        assert 'src="/hud/?mute"' in sim and 'data-story="falling"' in sim
+        assert "if (MUTE) return;" in c.get("/hud/hud.js").text

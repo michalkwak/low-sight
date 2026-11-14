@@ -1,0 +1,71 @@
+/* LowSight shared theme for the start page and the simulator.
+   Colours carry meaning and match the glasses HUD: green = in range / normal, amber = warning,
+   red = urgent, cyan = LowSight + recovery, violet = phone, blue = laptop. */
+:root {
+  color-scheme: dark;
+  --bg: #0b0e14;
+  --bg2: #101622;
+  --panel: rgba(23, 29, 41, 0.78);
+  --panel-solid: #161c27;
+  --line: rgba(148, 163, 184, 0.14);
+  --line-strong: rgba(148, 163, 184, 0.28);
+  --fg: #eef2f7;
+  --dim: #98a3b3;
+  --faint: #6b7686;
+  --cyan: #3ee6c1;
+  --cyan-deep: #12b892;
+  --green: #7ed957;
+  --amber: #ffb020;
+  --red: #ff5a36;
+  --violet: #a78bfa;
+  --blue: #60a5fa;
+  --radius: 16px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0; color: var(--fg); font: 16px/1.55 var(--font); min-height: 100vh;
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba(62, 230, 193, 0.10), transparent 60%),
+    radial-gradient(700px 420px at -10% 10%, rgba(96, 165, 250, 0.08), transparent 60%),
+    linear-gradient(180deg, var(--bg2), var(--bg) 420px);
+}
+a { color: var(--cyan); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font: 0.9em ui-monospace, SFMono-Regular, Consolas, monospace; background: rgba(148, 163, 184, 0.12); padding: 1px 6px; border-radius: 6px; }
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+/* Brand */
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand svg { width: 40px; height: 40px; flex: none; filter: drop-shadow(0 4px 14px rgba(62, 230, 193, 0.35)); }
+.brand .name { font-weight: 800; font-size: 22px; letter-spacing: -0.02em; }
+.brand .name span { color: var(--cyan); }
+.gradient-text { background: linear-gradient(90deg, #fff, #c9f7ec 40%, var(--cyan)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* Surfaces */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); backdrop-filter: blur(8px); }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 10px; font: 600 15px/1.2 var(--font); color: var(--fg);
+  padding: 11px 16px; border-radius: 12px; border: 1px solid var(--line-strong); background: rgba(255, 255, 255, 0.04);
+  cursor: pointer; transition: transform .08s ease, background .15s ease, border-color .15s ease; text-align: left;
+}
+.btn:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(148, 163, 184, 0.45); text-decoration: none; }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn small { display: block; font-weight: 400; font-size: 12px; color: var(--dim); margin-top: 2px; }
+.btn.primary { background: linear-gradient(180deg, #4bf0cb, var(--cyan-deep)); color: #032019; border-color: transparent; box-shadow: 0 8px 22px rgba(18, 184, 146, 0.30); }
+.btn.primary small { color: rgba(3, 32, 25, 0.75); }
+.btn.on { border-color: var(--cyan); background: rgba(62, 230, 193, 0.12); }
+.ico { width: 22px; height: 22px; flex: none; }
+
+/* Chips */
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; }
+.chip.cyan { color: var(--cyan); } .chip.violet { color: var(--violet); } .chip.blue { color: var(--blue); }
+.chip.amber { color: var(--amber); } .chip.green { color: var(--green); } .chip.red { color: var(--red); } .chip.dim { color: var(--dim); }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

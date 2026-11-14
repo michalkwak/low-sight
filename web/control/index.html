@@ -3,60 +3,190 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LowSight Control</title>
+  <title>LowSight simulator</title>
+  <link rel="icon" href="/hud/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/start/theme.css">
   <style>
-    body { font-family: system-ui, sans-serif; background: #111; color: #eee; margin: 0; padding: 16px; }
-    h1 { font-size: 20px; margin: 0 0 12px; }
-    .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
-    .row > label { min-width: 110px; color: #aaa; }
-    button, select { font-size: 16px; padding: 10px 14px; border-radius: 8px; border: 1px solid #444; background: #222; color: #eee; cursor: pointer; }
-    button.on { background: #2a6; border-color: #2a6; color: #000; }
-    .readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 16px 0; }
-    .card { background: #1b1b1b; border: 1px solid #333; border-radius: 10px; padding: 10px; }
-    .card b { display: block; font-size: 26px; margin-top: 4px; }
-    #log { background: #000; border: 1px solid #333; border-radius: 8px; padding: 8px; height: 180px; overflow: auto; font: 13px ui-monospace, monospace; }
-    .banner { border: 3px solid #444; color: #888; border-radius: 10px; padding: 10px 14px; font-size: 20px; font-weight: 700; }
-    .banner.LOW_SOON, .banner.PRE_DRIVE { border-color: #ffb020; color: #ffb020; }
-    .banner.PULL_OVER { border-color: #ff5a36; color: #ff5a36; }
-    .banner.RECOVERING { border-color: #3ee6c1; color: #3ee6c1; }
-    .banner small { display: block; font-size: 14px; font-weight: 400; color: #aaa; margin-top: 4px; }
+    header { max-width: 1240px; margin: 0 auto; padding: 22px 24px 6px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+    header nav { display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; }
+    .intro { max-width: 1240px; margin: 0 auto; padding: 4px 24px 0; color: var(--dim); }
+    .intro p { margin: 6px 0 0; max-width: 780px; }
+    main { max-width: 1240px; margin: 0 auto; padding: 18px 24px 48px; display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 22px; align-items: start; }
+    @media (max-width: 960px) { main { grid-template-columns: 1fr; } .preview { order: -1; position: static !important; } }
+    section.panel { padding: 18px 20px; margin-bottom: 18px; }
+    h2 { margin: 2px 0 2px; font-size: 18px; display: flex; align-items: center; gap: 10px; }
+    h2 .num { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; color: #032019; background: var(--cyan); }
+    .hint { color: var(--dim); font-size: 14px; margin: 2px 0 14px; }
+
+    /* Stories: colour = the outcome you'll see */
+    .stories { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 12px; }
+    .story { --c: var(--cyan); position: relative; text-align: left; font: inherit; color: var(--fg); cursor: pointer;
+      padding: 14px 14px 14px 16px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,0.03);
+      transition: transform .1s ease, border-color .15s ease, background .15s ease; overflow: hidden; }
+    .story::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c); opacity: .85; }
+    .story:hover { transform: translateY(-2px); border-color: var(--line-strong); }
+    .story.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); box-shadow: 0 0 0 1px var(--c) inset; }
+    .story .head { display: flex; align-items: center; gap: 10px; }
+    .story .icon { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+    .story b { font-size: 15.5px; line-height: 1.25; }
+    .story span.d { display: block; color: var(--dim); font-size: 13.5px; margin-top: 8px; }
+    .story .chip { margin-top: 10px; }
+    .s-red { --c: var(--red); } .s-amber { --c: var(--amber); } .s-cyan { --c: var(--cyan); } .s-violet { --c: var(--violet); } .s-green { --c: var(--green); }
+    .expect { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: rgba(62,230,193,0.08); border: 1px solid rgba(62,230,193,0.25); font-size: 15px; color: #d9f7ef; }
+    .expect:empty { display: none; }
+
+    /* Driver actions */
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .btn.stack { flex-direction: column; align-items: flex-start; gap: 0; }
+
+    /* Live status */
+    .status { display: grid; grid-template-columns: 1.3fr 1fr 1fr 0.8fr; gap: 12px; }
+    @media (max-width: 760px) { .status { grid-template-columns: 1fr 1fr; } }
+    .tile { padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); }
+    .tile .v { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .tile .v.big { font-size: 34px; }
+    .tile .s { color: var(--dim); font-size: 13.5px; margin-top: 2px; }
+    .v .u { font-size: 0.48em; font-weight: 600; color: var(--dim); margin-left: 5px; letter-spacing: 0; white-space: nowrap; }
+    .v.ok { color: var(--green); } .v.warn { color: var(--amber); } .v.bad { color: var(--red); } .v.stale { color: var(--faint); }
+    .trend { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 999px;
+      background: rgba(148,163,184,0.12); color: #cbd5e1; }
+    .trend.down { background: rgba(255,90,54,0.14); color: #ff9a82; } .trend.up { background: rgba(255,176,32,0.14); color: #ffc560; }
+    .trend.flat { background: rgba(126,217,87,0.14); color: #a9e88c; }
+
+    .chart { margin-top: 12px; padding: 10px 12px 6px; border-radius: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); }
+    .chart svg { width: 100%; height: auto; display: block; }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; color: var(--dim); font-size: 12.5px; padding: 4px 2px 2px; }
+    .legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+
+    .alert { --c: var(--green); margin-top: 12px; display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: 14px;
+      border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); background: linear-gradient(90deg, color-mix(in srgb, var(--c) 16%, transparent), transparent 70%); }
+    .alert .ai { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; color: var(--c); background: color-mix(in srgb, var(--c) 18%, transparent); font-size: 20px; }
+    .alert .t { font-size: 21px; font-weight: 800; letter-spacing: -0.01em; color: var(--c); }
+    .alert .l { font-size: 15.5px; margin-top: 1px; }
+    .alert .m { color: var(--dim); font-size: 13.5px; margin-top: 6px; }
+    .alert.LOW_SOON, .alert.PRE_DRIVE { --c: var(--amber); }
+    .alert.PULL_OVER { --c: var(--red); }
+    .alert.RECOVERING { --c: var(--cyan); }
+    .alert.urgent { animation: urgent 1.3s ease-in-out infinite; }
+    @keyframes urgent { 50% { box-shadow: 0 0 0 4px rgba(255, 90, 54, 0.25); } }
+
+    /* Glasses preview over a road: screen blending = the additive display (black is see-through) */
+    .preview { position: sticky; top: 16px; }
+    .lens { position: relative; width: 100%; aspect-ratio: 1; border-radius: 22px; overflow: hidden; border: 1px solid var(--line-strong);
+      box-shadow: var(--shadow); background: linear-gradient(180deg, #1b2a40 0%, #3d5675 30%, #6f7f91 38%, #2f3a2e 38.5%, #1c231b 100%); }
+    .lens .road { position: absolute; inset: 38.5% 0 0 0; background: #24272c; clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%); }
+    .lens .lane { position: absolute; left: 50%; top: 40%; bottom: 0; width: 1.6%; transform: translateX(-50%);
+      background: repeating-linear-gradient(180deg, #d9d6c4 0 7%, transparent 7% 15%); clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%); opacity: .55; }
+    .lens .dash { position: absolute; inset: auto 0 0 0; height: 16%; background: linear-gradient(180deg, transparent, rgba(10,12,16,.85)); }
+    .lens iframe { position: absolute; left: 0; top: 0; width: 600px; height: 600px; border: 0; transform-origin: 0 0; mix-blend-mode: screen; }
+    .preview .cap { color: var(--dim); font-size: 13.5px; margin: 10px 2px 0; }
+    .toggle-scene { margin-top: 8px; }
+
+    /* Advanced */
+    details.panel { padding: 14px 20px; }
+    summary { cursor: pointer; font-weight: 700; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; align-items: center; }
+    .row > label { min-width: 160px; color: var(--dim); font-size: 14px; }
+    .row button, .row select { font: 600 13.5px var(--font); padding: 7px 12px; border-radius: 9px; border: 1px solid var(--line-strong); background: rgba(255,255,255,0.04); color: var(--fg); cursor: pointer; }
+    .row button.on { border-color: var(--cyan); background: rgba(62,230,193,0.14); color: var(--cyan); }
+    #log { background: rgba(0,0,0,0.45); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; height: 140px; overflow: auto; font: 12px ui-monospace, monospace; color: #9fb0c2; white-space: pre-wrap; }
+    .disclaimer { color: var(--faint); font-size: 13px; margin: 18px 4px 0; }
   </style>
 </head>
 <body>
-  <h1>LowSight — demo control</h1>
-  <div class="row"><label>Scenario</label><select id="scenario"></select><button id="reset">Reset</button></div>
-  <div class="row"><label>Clock</label>
-    <button id="pause">Pause</button><button id="play">Play</button>
-    <span data-group="speed"><button data-v="1">1×</button><button data-v="10">10×</button><button data-v="30">30×</button><button data-v="60">60×</button></span>
-    <button id="jump20">Jump to −20 min before crossing</button>
-    <button id="jump">Jump to −5 min before crossing</button>
-  </div>
-  <div class="row"><label>In car (phone)</label>
-    <span data-group="force"><button data-v="on">On</button><button data-v="off">Off</button><button data-v="auto">Auto</button></span>
-  </div>
-  <div class="row"><label>Seat (glasses)</label>
-    <span data-group="role"><button data-v="driver">Driver</button><button data-v="passenger">Passenger</button><button data-v="auto">Auto</button></span>
-  </div>
-  <div class="row"><label>Units</label>
-    <span data-group="units"><button data-v="mmol">mmol/L</button><button data-v="mgdl">mg/dL</button></span>
-  </div>
-  <div class="row"><label>Alert</label>
-    <button id="ack">Ack (= Enter on HUD)</button>
-    <button id="stage">Stage audio: off</button>
-  </div>
-  <div id="banner" class="banner">No alert</div>
-  <div class="readout">
-    <div class="card">Glucose<b id="r-value">--</b></div>
-    <div class="card">Trend<b id="r-trend">--</b></div>
-    <div class="card">+30 min<b id="r-fc">--</b></div>
-    <div class="card">Phone<b id="r-phone">--</b></div>
-    <div class="card">In car<b id="r-car">--</b></div>
-    <div class="card">Seat · p_driver<b id="r-p">--</b></div>
-    <div class="card">Driving<b id="r-drv">--</b></div>
-    <div class="card">Alert<b id="r-alert">--</b></div>
-    <div class="card">Demo time<b id="r-time">--</b></div>
-  </div>
-  <div id="log"></div>
+  <header>
+    <a class="brand" href="/start/" style="color:inherit">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7ff5da"/><stop offset="1" stop-color="#12b892"/></linearGradient></defs>
+        <path d="M32 5C24 19 13 29 13 42a19 19 0 0 0 38 0C51 29 40 19 32 5z" fill="url(#g)"/><path d="M23 43h18" stroke="#063326" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="name">Low<span>Sight</span> <span style="color:var(--dim);font-weight:600">simulator</span></div>
+    </a>
+    <nav><a href="/start/">← All pages</a><a href="/hud/" target="_blank">Glasses view (full)</a><a href="/phone/" target="_blank">Phone companion</a></nav>
+  </header>
+  <div class="intro"><p>LowSight warns drivers with type 1 diabetes about a falling blood sugar through Meta Ray-Ban Display glasses.
+    Pick a story: it replays a simulated glucose trace on a fast clock (30× real time), and you see and hear what the driver would.</p></div>
+
+  <main>
+    <div>
+      <section class="panel">
+        <h2><span class="num">1</span>Choose a story</h2>
+        <p class="hint">Each one restarts the demo. The colour shows the kind of warning you'll see.</p>
+        <div class="stories" id="stories">
+          <button class="story s-red" data-story="falling"><div class="head"><span class="icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6l7 7 4-4 7 7"/><path d="M15 16h6v-6"/></svg></span><b>Glucose drops while driving</b></div>
+            <span class="d">Blood sugar falls during a drive.</span><span class="chip cyan">★ start here</span></button>
+          <button class="story s-amber" data-story="predrive"><div class="head"><span class="icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 14.5V21M9.6 11.2L3.4 9.5M14.4 11.2l6.2-1.7"/></svg></span><b>Already low before driving</b></div>
+            <span class="d">In the driver's seat, parked, already low.</span></button>
+          <button class="story s-cyan" data-story="recover"><div class="head"><span class="icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 18l6-6 4 4 8-8"/><path d="M15 8h6v6"/></svg></span><b>Treat and recover</b></div>
+            <span class="d">Pull over, take sugar, wait and recheck.</span></button>
+          <button class="story s-violet" data-story="passenger"><div class="head"><span class="icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c.6-3.4 3-5.4 6-5.4s5.4 2 6 5.4"/><path d="M16 4.8a3.2 3.2 0 0 1 0 6.4M17.5 14.8c2 .7 3.2 2.5 3.5 5.2"/></svg></span><b>Riding as a passenger</b></div>
+            <span class="d">Same drop, but someone else is driving.</span></button>
+          <button class="story s-green" data-story="stable"><div class="head"><span class="icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 13c3-3 5 2 9-1s6-2 9 0"/></svg></span><b>Normal drive</b></div>
+            <span class="d">Steady blood sugar: no false alarms.</span></button>
+        </div>
+        <div class="expect" id="expect"></div>
+      </section>
+
+      <section class="panel">
+        <h2><span class="num">2</span>Act as the driver</h2>
+        <p class="hint">What the wearer would do with a pinch on the glasses, or by voice.</p>
+        <div class="actions">
+          <button class="btn primary stack" id="ack">✓ Acknowledge alert<small>a pinch, or “OK, I'm pulling over”</small></button>
+          <button class="btn stack" id="seat-driver">I'm the driver<small>seat check or voice</small></button>
+          <button class="btn stack" id="seat-passenger">I'm a passenger<small>seat check or voice</small></button>
+          <button class="btn stack on" id="sound">🔊 Sound on<small>speaks alerts on this computer</small></button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2><span class="num">3</span>What LowSight knows right now</h2>
+        <div class="status" style="margin-top:12px">
+          <div class="tile"><div class="eyebrow">Blood sugar</div><div class="v big" id="r-value">--</div><span class="trend" id="r-trend">waiting…</span></div>
+          <div class="tile"><div class="eyebrow">In 30 minutes</div><div class="v" id="r-fc">--</div><div class="s" id="r-fcs">&nbsp;</div></div>
+          <div class="tile"><div class="eyebrow">Situation</div><div class="v" id="r-sit" style="font-size:19px">--</div><div class="s" id="r-seat">&nbsp;</div></div>
+          <div class="tile"><div class="eyebrow">Demo clock</div><div class="v" id="r-time">--</div><div class="s" id="r-speed">&nbsp;</div></div>
+        </div>
+        <div class="chart"><svg id="chart" viewBox="0 0 600 170" role="img" aria-label="Blood sugar over the last 3 hours and the 30-minute forecast"></svg>
+          <div class="legend"><span><i style="background:var(--cyan)"></i>last 3 hours</span><span><i style="background:repeating-linear-gradient(90deg,#fff 0 4px,transparent 4px 7px)"></i>forecast</span>
+            <span><i style="background:rgba(126,217,87,.5)"></i>target range</span><span><i style="background:var(--red)"></i>low (3.9 mmol/L · 70 mg/dL)</span></div></div>
+        <div class="alert" id="alert"><div class="ai" id="alert-icon">✓</div><div><div class="t">No warning</div><div class="l"></div><div class="m">Blood sugar is fine for driving right now.</div></div></div>
+      </section>
+
+      <details class="panel">
+        <summary>Advanced controls (for the demo operator)</summary>
+        <div class="row"><label>Glucose scenario</label><select id="scenario"></select><button id="reset">Reset</button></div>
+        <div class="row"><label>Clock</label>
+          <button id="pause">Pause</button><button id="play">Play</button>
+          <span data-group="speed"><button data-v="1">1×</button> <button data-v="10">10×</button> <button data-v="30">30×</button> <button data-v="60">60×</button></span>
+        </div>
+        <div class="row"><label>Jump</label><button id="jump20">−20 min before the low</button><button id="jump">−5 min before the low</button></div>
+        <div class="row"><label>In car (phone signal)</label>
+          <span data-group="force"><button data-v="on">On</button> <button data-v="off">Off</button> <button data-v="auto">Auto (real phone)</button></span>
+        </div>
+        <div class="row"><label>Seat (override)</label>
+          <span data-group="role"><button data-v="driver">Driver</button> <button data-v="passenger">Passenger</button> <button data-v="auto">Auto (camera / wearer)</button></span>
+        </div>
+        <div class="row"><label>Units</label>
+          <span data-group="units"><button data-v="mmol">mmol/L</button> <button data-v="mgdl">mg/dL</button></span>
+        </div>
+        <div class="row"><label>Technical</label><span class="hint" id="r-tech" style="margin:0">--</span></div>
+        <div id="log"></div>
+      </details>
+      <p class="disclaimer">Decision support only, not medical advice. LowSight never suggests insulin or carbohydrate doses.
+        Glucose data here is simulated. Everyone using this link shares one demo, so another visitor's clicks change what you see.</p>
+    </div>
+
+    <aside class="preview">
+      <section class="panel">
+        <h2>Through the glasses</h2>
+        <p class="hint">A live preview of the display, blended over a road at dusk the way the see-through lens shows it.</p>
+        <div class="lens" id="frame">
+          <div class="road"></div><div class="lane"></div><div class="dash"></div>
+          <iframe id="hud" src="/hud/?mute" title="LowSight on the glasses"></iframe>
+        </div>
+        <p class="cap">Click the view, then use ← / → to switch views and Enter to acknowledge. For the real look, open the
+          <a href="/hud/" target="_blank">full view</a> with <a href="https://chromewebstore.google.com/detail/jpjlmmodokemlepklkdbimceggpbjcll" target="_blank" rel="noopener">Meta's simulator</a>.</p>
+      </section>
+    </aside>
+  </main>
   <script src="control.js"></script>
 </body>
 </html>

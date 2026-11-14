@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LowSight – start here</title>
+  <meta name="description" content="LowSight: eyes-up low blood sugar alerts for drivers with type 1 diabetes, on Meta Ray-Ban Display glasses. Links to the simulator, the glasses app, the phone companion and the source.">
+  <link rel="icon" href="/hud/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/start/theme.css">
+  <style>
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 28px 22px 56px; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 28px; align-items: center; margin-top: 26px; }
+    @media (max-width: 820px) { .hero { grid-template-columns: 1fr; } }
+    h1 { font-size: clamp(32px, 5vw, 46px); line-height: 1.08; letter-spacing: -0.03em; margin: 10px 0 12px; }
+    .lead { font-size: 18px; color: #cdd5df; margin: 0; }
+    .cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
+    .cta .btn.primary { font-size: 17px; padding: 14px 20px; }
+
+    .try { padding: 20px 22px; }
+    .try ol { margin: 10px 0 0; padding: 0; list-style: none; counter-reset: s; }
+    .try li { counter-increment: s; position: relative; padding: 8px 0 8px 40px; color: #d6dde6; }
+    .try li::before { content: counter(s); position: absolute; left: 0; top: 7px; width: 28px; height: 28px; border-radius: 50%;
+      display: grid; place-items: center; font-weight: 800; font-size: 14px; color: #032019; background: var(--cyan); }
+
+    .how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: 30px; padding: 6px; }
+    @media (max-width: 720px) { .how { grid-template-columns: 1fr; } }
+    .step { padding: 18px 20px; display: flex; gap: 14px; align-items: flex-start; }
+    .step + .step { border-left: 1px solid var(--line); }
+    @media (max-width: 720px) { .step + .step { border-left: 0; border-top: 1px solid var(--line); } }
+    .step .badge { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; flex: none; }
+    .step b { display: block; }
+    .step p { margin: 2px 0 0; color: var(--dim); font-size: 14px; }
+
+    h2 { font-size: 22px; letter-spacing: -0.01em; margin: 44px 0 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+    .card { display: flex; gap: 14px; padding: 16px 18px; color: var(--fg); transition: transform .12s ease, border-color .15s ease; }
+    a.card:hover { text-decoration: none; transform: translateY(-2px); border-color: var(--line-strong); }
+    .card .badge { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; flex: none; }
+    .card .top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .card b { font-size: 16.5px; }
+    .card p { margin: 6px 0 0; color: var(--dim); font-size: 14px; }
+    .card .note { display: block; margin-top: 8px; padding: 8px 10px; border-radius: 10px; color: #ffd27a; background: rgba(255, 176, 32, 0.10); border: 1px solid rgba(255, 176, 32, 0.25); font-size: 13px; }
+    .featured { border-color: rgba(62, 230, 193, 0.45); background: linear-gradient(160deg, rgba(62, 230, 193, 0.12), var(--panel) 60%); }
+
+    .notes { padding: 6px 22px; }
+    .notes .n { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); color: #d6dde6; font-size: 15px; }
+    .notes .n:last-child { border-bottom: 0; }
+    .notes .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 7px; flex: none; }
+    .foot { color: var(--faint); font-size: 13px; margin-top: 30px; text-align: center; }
+
+    .b-cyan { background: rgba(62, 230, 193, 0.14); color: var(--cyan); }
+    .b-violet { background: rgba(167, 139, 250, 0.15); color: var(--violet); }
+    .b-blue { background: rgba(96, 165, 250, 0.15); color: var(--blue); }
+    .b-amber { background: rgba(255, 176, 32, 0.14); color: var(--amber); }
+    .b-green { background: rgba(126, 217, 87, 0.14); color: var(--green); }
+    .b-dim { background: rgba(148, 163, 184, 0.12); color: #cbd5e1; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7ff5da"/><stop offset="1" stop-color="#12b892"/></linearGradient></defs>
+        <path d="M32 5C24 19 13 29 13 42a19 19 0 0 0 38 0C51 29 40 19 32 5z" fill="url(#g)"/><path d="M23 43h18" stroke="#063326" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="name">Low<span>Sight</span></div>
+    </div>
+
+    <div class="hero">
+      <div>
+        <span class="eyebrow">Meta Ray-Ban Display · Junction hackathon</span>
+        <h1 class="gradient-text">Low blood sugar warnings that keep your eyes on the road.</h1>
+        <p class="lead">For drivers with type 1 diabetes. LowSight forecasts a falling blood sugar and warns you through your
+          glasses, before it becomes dangerous.</p>
+        <div class="cta">
+          <a class="btn primary" href="/control/">▶ Open the simulator</a>
+          <a class="btn" href="https://github.com/michalkwak/low-sight" target="_blank" rel="noopener">Source on GitHub</a>
+        </div>
+      </div>
+      <div class="panel try">
+        <span class="eyebrow">Try it in one minute</span>
+        <ol>
+          <li>Open the <b>simulator</b> and turn your sound on.</li>
+          <li>Click <b>“Glucose drops while driving”</b>.</li>
+          <li>Watch the glasses view: an early warning, then <b style="color:var(--red)">PULL OVER</b>, spoken aloud. Press <b>Acknowledge</b>, like a pinch on the glasses.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="panel how">
+      <div class="step"><div class="badge b-violet"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg></div>
+        <div><b>The phone senses the trip</b><p>Speed tells it you're in a moving car. It speaks every alert.</p></div></div>
+      <div class="step"><div class="badge b-cyan"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6.5" cy="14" r="4"/><circle cx="17.5" cy="14" r="4"/><path d="M10.5 13.5c1-.8 2-.8 3 0M2.5 13l1-5h4M21.5 13l-1-5h-4"/></svg></div>
+        <div><b>The glasses confirm the driver</b><p>A first-person seat check: driver or passenger.</p></div></div>
+      <div class="step"><div class="badge b-amber"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></div>
+        <div><b>Audio warns you, eyes up</b><p>“Low in 20 minutes, plan a stop”, then “Pull over”.</p></div></div>
+    </div>
+
+    <h2>Everything in this project</h2>
+    <div class="grid">
+      <a class="card panel featured" href="/control/">
+        <div class="badge b-cyan"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 5v14l11-7z"/></svg></div>
+        <div><div class="top"><b>Simulator</b><span class="chip blue">laptop</span><span class="chip cyan">start here</span></div>
+          <p>One-click stories, driver actions, plain-language status, a blood sugar chart and a live preview of the glasses.</p></div></a>
+      <a class="card panel" href="/hud/">
+        <div class="badge b-cyan"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6.5" cy="13" r="4"/><circle cx="17.5" cy="13" r="4"/><path d="M10.5 12.5c1-.8 2-.8 3 0"/></svg></div>
+        <div><div class="top"><b>Glasses app</b><span class="chip cyan">glasses · Chrome</span></div>
+          <p>The app on Meta Ray-Ban Display. In Chrome, turn on Meta's simulator extension for the real look. ← / → switch views, Enter acknowledges.</p></div></a>
+      <a class="card panel" href="/phone/">
+        <div class="badge b-violet"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="3"/></svg></div>
+        <div><div class="top"><b>Phone companion</b><span class="chip violet">phone</span></div>
+          <p>The always-on part: senses the trip, speaks alerts through the glasses, and has “I'm driving / I'm a passenger”. Tap Start and keep it open.</p></div></a>
+      <a class="card panel" href="/camera/">
+        <div class="badge b-amber"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+        <div><div class="top"><b>Seat check (camera)</b><span class="chip blue">laptop</span><span class="chip amber">local only</span></div>
+          <p>A webcam or driving video decides whether the wearer is in the driver's seat.</p>
+          <span class="note">The free version of Render can't run the camera's vision model (its size limits are too small for
+            PyTorch + CLIP). Run the project locally for real vision, or use the page's “simulate” buttons here.</span></div></a>
+      <a class="card panel" href="/hud/dev.html">
+        <div class="badge b-green"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 18V6M10 18v-8M16 18V9M22 18H2"/></svg></div>
+        <div><div class="top"><b>HUD playground and voice tools</b><span class="chip blue">laptop</span></div>
+          <p>Drive the glasses display from sliders, and try the Meta AI voice tools (“What's my blood sugar?”).</p></div></a>
+      <a class="card panel" href="https://chromewebstore.google.com/detail/jpjlmmodokemlepklkdbimceggpbjcll" target="_blank" rel="noopener">
+        <div class="badge b-blue"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg></div>
+        <div><div class="top"><b>Meta's glasses simulator</b><span class="chip blue">Chrome extension</span></div>
+          <p>Meta's official simulator. Install it, open the glasses app, and click the extension icon.</p></div></a>
+      <a class="card panel" href="https://github.com/michalkwak/low-sight" target="_blank" rel="noopener">
+        <div class="badge b-dim"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg></div>
+        <div><div class="top"><b>Source code</b><span class="chip dim">GitHub</span></div>
+          <p>Backend, glasses app, tests, build plan and the README with setup steps.</p></div></a>
+      <a class="card panel" href="/docs">
+        <div class="badge b-dim"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/></svg></div>
+        <div><div class="top"><b>API reference</b><span class="chip dim">developers</span></div>
+          <p>Every backend endpoint with “Try it out”. Live state at <code>/api/state</code>, Meta AI's instructions at <code>/llms.txt</code>.</p></div></a>
+    </div>
+
+    <h2>Good to know</h2>
+    <div class="panel notes">
+      <div class="n"><span class="dot" style="background:var(--green)"></span><div><b>Validated on real hardware.</b> The glasses app ran on Meta Ray-Ban Display, and alert speech from the phone played through the glasses' speakers.</div></div>
+      <div class="n"><span class="dot" style="background:var(--blue)"></span><div><b>One shared demo.</b> Everyone with this link controls the same simulation, so someone else's clicks may change what you see. Pick a story again to restart.</div></div>
+      <div class="n"><span class="dot" style="background:var(--amber)"></span><div><b>First load may be slow.</b> This site runs on Render's free plan, which sleeps when idle. If a page hangs, wait about a minute and reload.</div></div>
+      <div class="n"><span class="dot" style="background:var(--amber)"></span><div><b>No camera vision on this hosted site.</b> The free Render plan's size limits can't fit the vision model; the camera seat check works when the project runs locally.</div></div>
+      <div class="n"><span class="dot" style="background:var(--violet)"></span><div><b>Simulated data.</b> Blood sugar comes from replayed test scenarios. Production would connect to a CGM (Dexcom real-time partnership or Nightscout).</div></div>
+      <div class="n"><span class="dot" style="background:var(--red)"></span><div><b>Not medical advice.</b> LowSight is decision support. It never suggests insulin or carbohydrate doses and never says it's safe to drive.</div></div>
+    </div>
+    <p class="foot">Built for the Junction hackathon · Meta glasses challenge</p>
+  </div>
+</body>
+</html>
