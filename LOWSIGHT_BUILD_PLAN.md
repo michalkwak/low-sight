@@ -219,7 +219,8 @@ Two signals, because the glasses can't run continuously (§1.2):
 
 **Combining (`DrivingContext`):**
 - `role` starts as `unknown` on each trip. A seat check sets it to `driver` or `passenger` for the rest of the trip. A check done while parked carries into a trip that starts within 5 min. The role resets when the trip ends.
-- **`driving = in_vehicle and role != "passenger"`.** An unconfirmed wearer in a moving car is treated as possibly driving, because missing a real driver is worse than warning a passenger. A confirmed passenger gets no driving alerts (their normal CGM app alarms still apply).
+- **`driving = in_vehicle and role != "passenger"`.** An unconfirmed wearer in a moving car is treated as possibly driving, because missing a real driver is worse than warning a passenger. A confirmed passenger gets no driving instructions: no PULL_OVER or PRE_DRIVE, but still a gentle LOW_SOON ("Treat when you can", §5.6), so a wrong "passenger" result can't silence a real driver's warning.
+- **Where the seat check fits in practice:** the pre-drive check-in. People with T1D are told to check glucose before driving ("five to drive"); opening LowSight in the driver's seat to do that confirms the seat for free, and a low or dropping reading raises PRE_DRIVE before the car moves. Without a check the role stays `unknown` and every alert still fires. A real product would get the seat mostly from phone signals (own-car Bluetooth, CarPlay / Android Auto, habits), with the glasses check as confirmation.
 - **Control-panel overrides:** `force_driving` (in car: on/off/auto) and `force_role` (driver/passenger/auto). Essential demo fallbacks.
 
 **Seat check (vision):** detect that the wearer's POV is *from the driver's seat*. COCO detectors have no steering-wheel class, so use **CLIP zero-shot classification** on each frame. It runs only while a glasses session is open (≤ 3 min), so it must decide within seconds.
@@ -252,6 +253,7 @@ Inputs every tick: `reading`, `trend`, `forecast`, `driving` (the full `DrivingS
    HUD: red-amber "PULL OVER" + glucose + "Stop safely · take fast carbs". Audio: *"Your glucose is low. Pull over when it's safe and take fast-acting sugar."*
 2. **PRE_DRIVE**: fires when `reading < DRIVE_MIN` or `forecast(+30).mean < LOW` **and** either (a) the seat check confirms `driver` (the wearer opened the glasses in the driver's seat, typically still parked), or (b) a trip starts (`in_vehicle` false → true) and the wearer isn't a confirmed passenger. Case (a) is the main path and is shown on the open HUD; case (b) reaches the wearer through the phone. HUD: "Check before driving" + value + "Treat before you set off". Audio: *"Before you drive: your glucose is low or dropping. Treat it first."* If this condition persists past 60 s of driving, escalate to PULL_OVER.
 3. **LOW_SOON**, only when `driving`: `forecast(+30).mean < LOW` (or `lo < LOW` and `mean < LOW + 10`) while `reading ≥ LOW`. HUD: amber "Low in ~N min" + "Plan a stop". Audio: *"Heads up: you may go low in about N minutes. Plan a stop."* Compute N by linear interpolation of the forecast to the LOW crossing, rounded to 5 min.
+   **Confirmed passenger** (in the car, seat check says passenger): LOW_SOON fires for both the LOW_SOON and the PULL_OVER conditions, worded for someone who isn't driving: "Low in ~N min" or "LOW GLUCOSE" + "Treat when you can"; audio *"Heads up: you may go low in about N minutes. Treat it when you can."* or *"Your glucose is low. Treat it when you can."* Never PULL_OVER or its repeat. A wrong "passenger" from the seat check therefore softens the wording but never silences the warning.
 4. **RECOVERING**: after a PULL_OVER is acknowledged and the reading is rising, show "Wait 15 min · recheck" with a countdown on the demo clock. Clear when `reading ≥ DRIVE_MIN` and trend ≥ 0. (Encodes "treat, wait, recheck before driving on".)
 5. Otherwise **NONE**.
 
@@ -373,7 +375,7 @@ The full steps are in `README.md`.
 - `test_alert_engine.py`: each scenario CSV produces the expected sequence of alert levels and times (± one reading). `stable_drive` produces **zero** alerts. Not driving → never LOW_SOON or PULL_OVER. Ack silences repeats. Hysteresis prevents flapping on noisy data around 70.
 - `test_forecast.py`: a flat trace gives a flat forecast. A linear fall is extrapolated within tolerance. A sensor gap gives no forecast.
 - `test_driving_state.py`: one false-positive frame doesn't decide the seat; steady driver/passenger frames decide within a session. Phone speed must hold before a trip starts; a car connection starts it at once; a traffic-light stop doesn't end it; a silent phone ends it after `TRIP_END_S`. Unconfirmed in-car counts as driving; a confirmed passenger doesn't, until the trip ends. A parked seat check carries into the trip. Overrides win.
-- Not in a car, or a confirmed passenger → never LOW_SOON or PULL_OVER.
+- Not in a car → never LOW_SOON or PULL_OVER. A confirmed passenger → only the gentle passenger LOW_SOON, never PULL_OVER or PRE_DRIVE; a "passenger" result mid-PULL_OVER softens it to LOW_SOON without a silent gap.
 - Manual: the HUD is legible in the simulator at Medium size over the brightest background. Every view is reachable with arrows and Enter only. Killing the backend shows "Reconnecting…" and recovers. The HUD shows useful state within 1 s of opening. The phone page speaks an alert with the screen on and the page in front.
 - Re-read §1.1 (challenge requirements) and tick each one off.
 
@@ -391,7 +393,7 @@ The full steps are in `README.md`.
 ---
 
 ## 12. Known risks
-- **Vision false positives** (passenger seat, car interiors in photos): mitigated by the passenger prompts, the hold time and the override toggles. Report the measured accuracy honestly.
+- **Vision false positives** (passenger seat, car interiors in photos): mitigated by the passenger prompts, the hold time and the override toggles. A false "passenger" only softens the wording to "Treat when you can"; it never silences the warning. Report the measured accuracy honestly.
 - **No seat check this trip** (wearer didn't open the glasses): role stays `unknown` and LowSight alerts anyway (safe default). A passenger may get alerts they don't need.
 - **Phone web page limits:** a backgrounded or locked browser tab may stop GPS, speech and timers. For the demo keep the page in front with the wake lock. A native app (§8) fixes this.
 - **Web notifications on the glasses:** confirmed for phone notifications in general, unverified for a browser page. Speech through the glasses speakers is the main channel.

@@ -16,7 +16,7 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 - [x] Alert engine with all five levels, dedupe, hysteresis, ack, PULL_OVER repeat (M2, M4)
 - [x] Camera page, `/ws/frames` with the CLIP detector slot, seat feedback on the HUD (M3)
 - [x] HUD meets Meta's web-app metadata rules; forecast floor; stale states (M5, partly)
-- [x] 53 pytest tests passing (alert engine, app wiring, forecast, trip detection, seat check, eval script, plus the 20 JS voice-tool tests run as one)
+- [x] 55 pytest tests passing (alert engine, app wiring, forecast, trip detection, seat check, eval script, plus the 20 JS voice-tool tests run as one)
 
 ---
 
@@ -44,13 +44,16 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 - [x] `tests/test_alert_engine.py`:
   - [x] `falling_while_driving` → LOW_SOON, then PULL_OVER, at the expected times (± one reading): 50 and 60 min
   - [x] `stable_drive` → zero alerts
-  - [x] Not in a car, or a confirmed passenger → never LOW_SOON or PULL_OVER
+  - [x] Not in a car → never LOW_SOON or PULL_OVER
+  - [x] Confirmed passenger → gentle LOW_SOON only ("Treat when you can"), never PULL_OVER or PRE_DRIVE, so a wrong seat result can't silence a real driver's warning
   - [x] Ack silences repeats; noisy readings around 70 don't flap
 - [ ] **Done when:** forcing in-car on `falling_while_driving` gives LOW_SOON, then PULL_OVER, spoken by the phone. Verified against the live server with a scripted phone client; **still to hear on a real phone.**
 
 ## 3. M3: seat check (vision)
 
 - [x] Vision dependencies are listed in `requirements.txt`; the uv install is `uv sync --extra vision --group dev` (large downloads).
+- [x] Real CLIP model runs end to end on the laptop (torch 2.15): weights download ~3.5 min once; first frame ~8 s (model load), then ~0.1 s per frame. A plain room scores 0.47 ("can't tell"), a drawn dashboard 0.82. **Accuracy still unmeasured** on real footage.
+- [ ] Optional: load the model when the backend starts, so the first seat check on stage doesn't wait ~8 s.
 - [x] `backend/vision/clip_detector.py`: CLIP ViT-B-32 zero-shot with driver, passenger and other prompt groups → `p_driver`. A reported run and prompt update moved the public-photo driver examples from 2/4 to 4/4; this is not a representative accuracy result.
   - [x] Downscale to 224 px; skip a frame if the previous one is still processing (never queue).
 - [x] Wire the detector into `/ws/frames` for binary JPEG frames.
