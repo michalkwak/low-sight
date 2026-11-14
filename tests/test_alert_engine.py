@@ -83,10 +83,48 @@ def test_stable_drive_gives_zero_alerts():
 
 
 @pytest.mark.parametrize("name", ["falling_while_driving", "low_before_drive", "treated_recovery"])
-@pytest.mark.parametrize("driving", [ds(in_vehicle=False), ds(in_vehicle=True, role="passenger")])
-def test_not_in_car_or_confirmed_passenger_never_alerts(name, driving):
-    _, ev = run(scenario(name), driving)
+def test_not_in_car_never_alerts(name):
+    _, ev = run(scenario(name), ds(in_vehicle=False))
     assert ev == []
+
+
+# ---------------------------------------------------------------- confirmed passenger
+@pytest.mark.parametrize("name", ["falling_while_driving", "low_before_drive", "treated_recovery"])
+def test_confirmed_passenger_gets_gentle_low_soon_never_pull_over(name):
+    _, ev = run(scenario(name), ds(role="passenger"))
+    levels = {lvl for _, lvl in raises(ev)}
+    assert levels == {"LOW_SOON"}  # warned, but never PULL_OVER or PRE_DRIVE
+    assert not any(e["type"] == "repeat" for _, e in ev)
+    for _, e in ev:
+        if e["type"] == "raise" and e["speak"]:
+            assert "Treat it when you can" in e["speak"] and "Pull over" not in e["speak"]
+
+
+def test_passenger_wording_follows_the_glucose():
+    seen = []
+
+    def watch(s, t):
+        if s.alert.level != "NONE":
+            seen.append((s.alert.title, s.alert.line))
+        return s, []
+
+    _, ev = run(scenario("falling_while_driving"), ds(role="passenger"), on_tick=watch)
+    assert raises(ev)[0] == (pytest.approx(50, abs=5), "LOW_SOON")  # same timing as for a driver
+    assert seen[0][0].startswith("LOW IN ~") and seen[0][1] == "Treat when you can"
+    assert ("LOW GLUCOSE", "Treat when you can") in seen  # once the reading is below 70
+    spoken = [e["speak"] for _, e in ev if e["type"] == "raise" and e["speak"]]
+    assert len(spoken) == 1  # the wording changes silently; said once per episode
+
+
+def test_wrong_passenger_mid_alert_softens_pull_over_instead_of_silencing_it():
+    # Unknown seat (treated as driving) until minute 70, then the seat check says passenger.
+    def driving(m):
+        return ds(role="passenger" if m >= 70 else "unknown")
+
+    s, ev = run(scenario("falling_while_driving"), driving, end=75)
+    assert [lvl for _, lvl in raises(ev)] == ["LOW_SOON", "PULL_OVER", "LOW_SOON"]
+    assert s.alert.level == "LOW_SOON" and s.alert.title == "LOW GLUCOSE"
+    assert not any(e["type"] == "clear" for _, e in ev)  # never silent in between
 
 
 def test_low_soon_title_counts_down_to_the_forecast_crossing():
@@ -143,21 +181,27 @@ def test_noisy_readings_around_70_do_not_flap():
 
 
 def test_each_level_is_spoken_once_per_episode():
-    flat75 = trace([75] * 40)  # in range, but the +30 min band reaches below 70 → LOW_SOON
-    blips = {  # minutes as a confirmed passenger (LOW_SOON off), then back to unknown
-        "short": (20, 25),  # off for 5 min → same episode → silent when it returns
+    # A steady 75 with a forecast that dips below 70 at +30 min → LOW_SOON. During the
+    # blips the forecast stays in range, so LOW_SOON drops after 2 readings (hysteresis).
+    # One reading a minute; the forecast is given directly so the blips are exact.
+    blips = {
+        "short": (20, 23),  # condition off for 3 min → same episode → silent when it returns
         "long": (40, 55),  # off for 15 min → new episode → spoken again
     }
-
-    def driving(m):
-        passenger = any(a <= m < b for a, b in blips.values())
-        return ds(in_vehicle=True, role="passenger" if passenger else "unknown")
-
-    # Start mid-trip: a trip *starting* at 75 would (correctly) arm PRE_DRIVE instead.
-    mid_trip = EngineState(epoch="test", in_vehicle=True)
-    _, ev = run(flat75, driving, end=70, state=mid_trip)
-    low_soon = [(m, e["speak"] is not None) for m, e in ev if e["type"] == "raise"]
-    assert low_soon == [(0.0, True), (25.0, False), (55.0, True)]
+    s = EngineState(epoch="test", in_vehicle=True)  # mid-trip: a trip start would arm PRE_DRIVE
+    events = []
+    t = T0
+    while t <= T0 + timedelta(minutes=70):
+        m = minute(t)
+        r = CGMReading(t=T0 + timedelta(minutes=int(m)), mgdl=75)
+        off = any(a <= m < b for a, b in blips.values())
+        mean = [80, 82, 84] if off else [74, 72, 68]
+        fc = Forecast(t0=r.t, horizons_min=[10, 20, 30], mean=mean, lo=[v - 6 for v in mean], hi=[v + 6 for v in mean])
+        s, eff = evaluate(s, EngineInputs(r, 0.0, fc, ds()), t)
+        events += [(m, e) for e in eff]
+        t += STEP
+    low_soon = [(m, e["speak"] is not None) for m, e in events if e["type"] == "raise"]
+    assert low_soon == [(0.0, True), (23.0, False), (55.0, True)]
 
 
 def test_alert_ids_are_unique_across_engine_resets():

@@ -55,7 +55,7 @@
       const d = s.driving;
       $("r-phone").textContent = d.phone_stale ? "offline" : `${d.speed_kmh == null ? "--" : Math.round(d.speed_kmh)} km/h${d.car_connected ? " · car" : ""}`;
       $("r-car").textContent = d.in_vehicle ? "yes" : "no";
-      $("r-p").textContent = `${d.role} · ${d.p_driver.toFixed(2)}${d.seat_checking ? " · checking" : ""}`;
+      $("r-p").textContent = `${d.role}${d.role_source && d.role_source !== "none" ? ` (${d.role_source})` : ""} · ${d.p_driver.toFixed(2)}${d.seat_checking ? " · checking" : ""}`;
       $("r-drv").textContent = `${d.driving ? "YES" : "no"} (${d.source})`;
       $("r-alert").textContent = s.alert.level;
       $("r-time").textContent = new Date(s.now).toISOString().slice(11, 16);

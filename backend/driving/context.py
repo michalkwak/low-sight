@@ -21,6 +21,7 @@ from backend.vision.driving_state import Seat, SeatTracker
 Force = Literal["auto", "on", "off"]
 ForceRole = Literal["auto", "driver", "passenger"]
 Role = Literal["driver", "passenger", "unknown"]
+RoleSource = Literal["none", "camera", "wearer"]
 
 
 class DrivingContext:
@@ -36,6 +37,7 @@ class DrivingContext:
         self.seat.reset()
         self._role: Role = "unknown"
         self._role_at: float | None = None
+        self._role_source: RoleSource = "none"
         self._was_in_vehicle = False
         self._frame_at: float | None = None
 
@@ -57,21 +59,33 @@ class DrivingContext:
         self._frame_at = wall_s
         seat = self.seat.update(p_driver, wall_s)
         if seat is not None:
-            self._role, self._role_at = seat, wall_s
+            self._set_role(seat, wall_s, "camera")
         return seat
+
+    def confirm_role(self, role: Seat, wall_s: float) -> None:
+        """The wearer says which seat they're in (voice via Meta AI, or the phone page).
+        Same effect as a decided seat check: it holds for this trip, carries into a trip
+        that starts within TRIP_END_S, and resets when the trip ends. This is the fallback
+        when no camera check runs (web apps can't use the glasses camera). While a camera
+        session keeps deciding, its result overwrites this on the next frame: the camera is
+        the authority when it runs."""
+        self._set_role(role, wall_s, "wearer")
+
+    def _set_role(self, role: Role, wall_s: float | None, source: RoleSource) -> None:
+        self._role, self._role_at, self._role_source = role, wall_s, source
 
     def tick(self, wall_s: float) -> None:
         self.vehicle.tick(wall_s)
         now_in = self.in_vehicle
         if self._was_in_vehicle and not now_in:
-            self._role, self._role_at = "unknown", None  # trip ended
+            self._set_role("unknown", None, "none")  # trip ended
             self.seat.reset()
         elif (
             not now_in
             and self._role_at is not None
             and wall_s - self._role_at >= settings.TRIP_END_S
         ):
-            self._role, self._role_at = "unknown", None  # parked confirmation expired
+            self._set_role("unknown", None, "none")  # parked confirmation expired
         self._was_in_vehicle = now_in
 
     # ---- outputs ----
@@ -105,4 +119,5 @@ class DrivingContext:
             source="forced" if forced else "phone",
             since=since,
             seat_checking=self._frame_at is not None and wall_s - self._frame_at < 3.0,
+            role_source="forced" if self.force_role != "auto" else self._role_source,
         )

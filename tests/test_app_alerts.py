@@ -59,6 +59,46 @@ def test_hud_enter_acks_and_phone_reports_spoken():
             restore(c)
 
 
+def test_wearer_confirms_seat_over_the_state_socket():
+    with TestClient(app) as c:
+        try:
+            # Parked (no trip), already low: saying "I'm driving" is a seat confirmation → PRE_DRIVE.
+            c.post("/api/control", json={"scenario": "low_before_drive", "force_driving": "off", "pause": True, "reset": True})
+            with c.websocket_connect("/ws/state") as ws:
+                assert ws.receive_json()["driving"]["role"] == "unknown"
+                ws.send_json({"type": "seat", "role": "pilot"})  # not a seat: ignored
+                ws.send_json({"type": "seat", "role": "driver"})
+                s = receive_until(ws, lambda s: s["driving"]["role"] == "driver")
+                assert s["driving"]["role_source"] == "wearer"
+                s = receive_until(ws, lambda s: s["alert"]["level"] == "PRE_DRIVE")
+                assert s["alert"]["title"] == "CHECK BEFORE DRIVING"
+                # "passenger" can't clear CHECK BEFORE DRIVING (urgent)...
+                assert rt.confirm_seat("passenger") is False and rt.ctx.role == "driver"
+            # ...but works when no urgent alert is up: driving alerts stop for the trip.
+            c.post("/api/control", json={"scenario": "stable_drive", "force_driving": "on", "pause": True})
+            with c.websocket_connect("/ws/state") as ws:
+                ws.send_json({"type": "seat", "role": "passenger"})
+                s = receive_until(ws, lambda s: s["driving"]["role"] == "passenger")
+                assert s["driving"]["driving"] is False and s["driving"]["role_source"] == "wearer"
+        finally:
+            restore(c)
+
+
+def test_wearer_passenger_cannot_clear_an_urgent_alert():
+    with TestClient(app) as c:
+        try:
+            start(c, seek_min=60)  # driving, PULL_OVER up
+            with c.websocket_connect("/ws/state") as ws:
+                assert ws.receive_json()["alert"]["level"] == "PULL_OVER"
+                ws.send_json({"type": "seat", "role": "passenger"})
+                ws.send_json({"type": "ack", "id": "x"})  # any later message: the socket still works
+                s = ws.receive_json()
+                assert s["alert"]["level"] == "PULL_OVER" and s["driving"]["role"] != "passenger"
+            assert rt.confirm_seat("driver") is True  # "driver" is always accepted
+        finally:
+            restore(c)
+
+
 def test_control_panel_ack_and_bad_scenario():
     with TestClient(app) as c:
         try:

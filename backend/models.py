@@ -31,6 +31,8 @@ class DrivingState(BaseModel):
     source: Literal["phone", "forced"] = "phone"
     since: datetime
     seat_checking: bool = False  # camera frames are arriving (a seat check is running)
+    # Who decided ``role``: the camera seat check, the wearer (voice / phone), or a control-panel override.
+    role_source: Literal["none", "camera", "wearer", "forced"] = "none"
 
 
 class Alert(BaseModel):
