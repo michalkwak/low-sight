@@ -46,6 +46,15 @@ class Settings(BaseSettings):
     TRIP_END_S: float = 300.0  # stopped + disconnected (or phone silent) this long → trip over
     PHONE_STALE_S: float = 30.0
 
+    # Per-visitor demos: each simulator visitor gets a private demo (4-character code) so
+    # people trying it at the same time don't drive each other's demo. PER_VISITOR_DEMOS=false
+    # is the off switch: everyone shares the "main" demo again. Only demos with an open page
+    # are updated (CPU), at most MAX_ACTIVE_DEMOS of them; idle demos are deleted.
+    PER_VISITOR_DEMOS: bool = True
+    MAX_ACTIVE_DEMOS: int = 15
+    MAX_DEMOS: int = 200
+    DEMO_IDLE_MIN: float = 30.0
+
     SCENARIO: str = "falling_while_driving"
     SCENARIO_DIR: Path = ROOT / "data" / "scenarios"
     CITY_PATH: Path = ROOT / "data" / "city"

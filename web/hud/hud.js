@@ -29,7 +29,9 @@
   // ---- connection ----
   function wsUrl() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    return `${proto}//${location.host}/ws/state`;
+    // ?s=CODE: a private simulator demo (per visitor). Without it: the shared demo (the glasses).
+    const code = new URLSearchParams(location.search).get("s");
+    return `${proto}//${location.host}/ws/state${code ? `?s=${encodeURIComponent(code)}` : ""}`;
   }
   function connect() {
     ws = new WebSocket(wsUrl());

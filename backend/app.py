@@ -6,7 +6,10 @@ import asyncio
 import contextlib
 import json
 import logging
+import re
+import secrets
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
@@ -48,7 +51,8 @@ def load_scenario(name: str):
 
 
 class Runtime:
-    def __init__(self) -> None:
+    def __init__(self, code: str = "main") -> None:
+        self.code = code
         self.units = settings.UNITS
         self.clock = DemoClock(speed=settings.SPEED)
         self.ctx = DrivingContext()
@@ -108,6 +112,7 @@ class Runtime:
             paused=self.clock.paused,
             force_driving=self.ctx.force_vehicle,
             force_role=self.ctx.force_role,
+            demo=self.code,
         )
 
     def ack(self, alert_id: str | None) -> bool:
@@ -136,24 +141,125 @@ class Runtime:
         return False
 
 
-rt = Runtime()
-hub = Hub()
+# ---------------------------------------------------------------- per-visitor demos
+MAIN = "main"
+CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no O/0 or I/1: easy to read and type
+CODE_RE = re.compile(f"[{CODE_ALPHABET}]{{4}}")
+
+
+@dataclass
+class Demo:
+    """One independent demo: its own clock, scenario, alert engine, trip and seat state,
+    and the pages (sockets) watching it."""
+
+    code: str
+    rt: Runtime
+    hub: Hub
+    last_seen: float
+    last_sig: tuple | None = None
+    last_push: float = 0.0
+
+
+class Demos:
+    """The shared "main" demo (glasses, old links, no code) plus private demos by code.
+
+    A demo is updated only while a page has it open, so idle demos cost no CPU; at most
+    MAX_ACTIVE_DEMOS can be open at once (Render's free plan has a tenth of a core).
+    Demos idle for DEMO_IDLE_MIN are deleted. Anything that can't get a private demo
+    (switched off, or full) gets the shared one: the worst case is the old behaviour."""
+
+    def __init__(self) -> None:
+        self.main = Demo(MAIN, Runtime(MAIN), Hub(), time.monotonic())
+        self.rooms: dict[str, Demo] = {}
+
+    @staticmethod
+    def normalize(code: str | None) -> str | None:
+        code = (code or "").strip().upper()
+        return code if CODE_RE.fullmatch(code) else None
+
+    def active(self) -> int:
+        return sum(1 for d in self.rooms.values() if d.hub.count > 0)
+
+    def _room_allowed(self) -> bool:
+        self.prune()
+        return (
+            settings.PER_VISITOR_DEMOS
+            and self.active() < settings.MAX_ACTIVE_DEMOS
+            and len(self.rooms) < settings.MAX_DEMOS
+        )
+
+    def _new_room(self, code: str) -> Demo:
+        d = self.rooms[code] = Demo(code, Runtime(code), Hub(), time.monotonic())
+        log.info("demo %s created (%d demos, %d active)", code, len(self.rooms), self.active())
+        return d
+
+    def create(self) -> tuple[Demo, str | None]:
+        """A new private demo, or (main, reason) when that isn't possible."""
+        if not settings.PER_VISITOR_DEMOS:
+            return self.main, "off"
+        if not self._room_allowed():
+            return self.main, "busy"
+        while True:
+            code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(4))
+            if code not in self.rooms:
+                return self._new_room(code), None
+
+    def get(self, code: str | None, create: bool = False) -> Demo | None:
+        """The demo for a code. No code, a malformed code, or the off switch → main.
+        A valid code NEVER falls back to main (that would let a visitor drive the shared
+        glasses demo): an unknown one is created only when ``create`` (the live socket
+        does that, e.g. after a server restart) and there is room; otherwise None."""
+        c = self.normalize(code)
+        if c is None or not settings.PER_VISITOR_DEMOS:
+            return self.main
+        d = self.rooms.get(c)
+        if d is None:
+            if not create or not self._room_allowed():
+                return None
+            d = self._new_room(c)
+        d.last_seen = time.monotonic()
+        return d
+
+    def can_open(self, d: Demo) -> bool:
+        """Opening a page on a private demo that nobody has open makes it active (updated
+        every tick), so it counts against MAX_ACTIVE_DEMOS."""
+        return d is self.main or d.hub.count > 0 or self.active() < settings.MAX_ACTIVE_DEMOS
+
+    def prune(self) -> None:
+        cutoff = time.monotonic() - settings.DEMO_IDLE_MIN * 60
+        for code, d in list(self.rooms.items()):
+            if d.hub.count == 0 and d.last_seen < cutoff:
+                del self.rooms[code]
+                log.info("demo %s expired", code)
+
+    def ticking(self) -> list[Demo]:
+        return [self.main] + [d for d in self.rooms.values() if d.hub.count > 0]
+
+
+demos = Demos()
+rt = demos.main.rt  # the shared demo (tests and the code-less endpoints use it)
+hub = demos.main.hub
 
 
 async def tick_loop() -> None:
-    last_sig = None
-    last_push = 0.0
+    last_prune = time.monotonic()
     while True:
-        try:
-            state = rt.compute()
-            t = time.monotonic()
-            a = state.alert
-            sig = (a.id, a.acked, a.spoken, a.title, a.line)
-            if sig != last_sig or t - last_push >= 1.0:
-                await hub.broadcast(state.model_dump_json())
-                last_push, last_sig = t, sig
-        except Exception:
-            log.exception("tick failed")
+        for d in demos.ticking():
+            try:
+                state = d.rt.compute()
+                t = time.monotonic()
+                a = state.alert
+                sig = (a.id, a.acked, a.spoken, a.title, a.line)
+                if sig != d.last_sig or t - d.last_push >= 1.0:
+                    await d.hub.broadcast(state.model_dump_json())
+                    d.last_push, d.last_sig = t, sig
+                if d is not demos.main:
+                    d.last_seen = t
+            except Exception:
+                log.exception("tick failed for demo %s", d.code)
+        if time.monotonic() - last_prune > 30:
+            demos.prune()
+            last_prune = time.monotonic()
         await asyncio.sleep(settings.TICK_S)
 
 
@@ -187,17 +293,42 @@ def llms_txt():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "scenario": rt.scenario, "clients": hub.count, "now": rt.clock.now().isoformat()}
+    return {
+        "ok": True,
+        "scenario": rt.scenario,
+        "clients": hub.count,
+        "now": rt.clock.now().isoformat(),
+        "per_visitor_demos": settings.PER_VISITOR_DEMOS,
+        "demos": len(demos.rooms),
+        "active_demos": demos.active(),
+    }
+
+
+@app.post("/api/demos")
+def new_demo():
+    """A private demo for one visitor. ``private`` is false (with ``reason`` "off" or
+    "busy") when they get the shared demo instead."""
+    d, reason = demos.create()
+    return {"code": d.code, "private": d is not demos.main, "reason": reason}
+
+
+def demo_for(s: str | None) -> Demo:
+    """HTTP endpoints act on an existing demo only (no creating demos with a plain GET).
+    A valid but unknown code (expired, or the server restarted) is a 404, never main."""
+    d = demos.get(s)
+    if d is None:
+        raise HTTPException(404, "unknown demo: open the simulator again for a new one")
+    return d
 
 
 @app.get("/api/state")
-def get_state():
-    return rt.compute()
+def get_state(s: str | None = None):
+    return demo_for(s).rt.compute()
 
 
 @app.get("/api/scenarios")
-def scenarios():
-    return {"scenarios": synthetic.SCENARIOS, "current": rt.scenario}
+def scenarios(s: str | None = None):
+    return {"scenarios": synthetic.SCENARIOS, "current": demo_for(s).rt.scenario}
 
 
 class Control(BaseModel):
@@ -214,7 +345,9 @@ class Control(BaseModel):
 
 
 @app.post("/api/control")
-async def control(c: Control):
+async def control(c: Control, s: str | None = None):
+    d = demo_for(s)
+    rt = d.rt
     if c.scenario is not None:
         if not scenario_exists(c.scenario):
             raise HTTPException(400, f"unknown scenario {c.scenario!r}")
@@ -244,16 +377,23 @@ async def control(c: Control):
         rt.compute()  # make sure we ack what is on screen now
         rt.ack(None)
     state = rt.compute()
-    await hub.broadcast(state.model_dump_json())
+    await d.hub.broadcast(state.model_dump_json())
     return state
 
 
 @app.websocket("/ws/state")
-async def ws_state(ws: WebSocket):
+async def ws_state(ws: WebSocket, s: str | None = None):
     """Server → client: AppState JSON at ~1 Hz and on every alert change.
     Client → server: {"type": "ack", "id": …} (Enter on the HUD),
     {"type": "spoken", "id": …} (the phone or stage audio spoke that alert) and
-    {"type": "seat", "role": "driver" | "passenger"} (the wearer says which seat they're in)."""
+    {"type": "seat", "role": "driver" | "passenger"} (the wearer says which seat they're in).
+    ``?s=CODE`` picks a private demo; without it, the shared one."""
+    d = demos.get(s, create=True)
+    if d is None or not demos.can_open(d):
+        await ws.accept()
+        await ws.close(code=1013, reason="busy")  # 1013 = try again later; never main for a private code
+        return
+    rt, hub = d.rt, d.hub
     await hub.connect(ws)
     try:
         await ws.send_text(rt.compute().model_dump_json())
@@ -286,14 +426,15 @@ class PhoneIn(BaseModel):
 
 
 @app.post("/api/phone")
-async def phone(p: PhoneIn):
+async def phone(p: PhoneIn, s: str | None = None):
     """Phone context signal, sent about once a second by the /phone page."""
+    rt = demo_for(s).rt
     rt.ctx.on_phone(PhoneSignal(speed_kmh=p.speed_kmh, car_connected=p.car_connected, wall_s=time.monotonic()))
     return rt.ctx.snapshot(rt.driving_since, time.monotonic())
 
 
 @app.websocket("/ws/frames")
-async def ws_frames(ws: WebSocket):
+async def ws_frames(ws: WebSocket, s: str | None = None):
     """One seat check = one connection, limited to SESSION_MAX_S like a glasses session.
 
     Binary JPEG frames go to the CLIP detector. The latest frame wins: a frame that
@@ -301,7 +442,12 @@ async def ws_frames(ws: WebSocket):
     so frames never queue. A text message ``{"p_driver": 0.9}`` feeds a score directly
     (tests, and the camera page's simulate buttons). Every scored frame gets a reply
     ``{p_driver (smoothed), p_frame, seat, role, elapsed_s}``, plus ``error`` or ``done``."""
+    d = demos.get(s, create=True)
     await ws.accept()
+    if d is None:
+        await ws.close(code=1013, reason="busy")
+        return
+    rt = d.rt
     opened = time.monotonic()
     rt.ctx.start_seat_check()
     send_lock = asyncio.Lock()

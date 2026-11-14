@@ -49,5 +49,6 @@ def test_start_page_simulator_and_muted_preview():
             assert link in start, link
         assert "free version of Render" in start  # judges are told the camera needs a local run
         sim = c.get("/control/").text
-        assert 'src="/hud/?mute"' in sim and 'data-story="falling"' in sim
+        assert 'data-story="falling"' in sim and 'id="demo-code"' in sim
+        assert "/hud/?mute" in c.get("/control/control.js").text  # muted preview, joined to the visitor's demo
         assert "if (MUTE) return;" in c.get("/hud/hud.js").text

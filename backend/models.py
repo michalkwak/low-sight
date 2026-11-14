@@ -62,3 +62,4 @@ class AppState(BaseModel):
     paused: bool = False
     force_driving: Literal["on", "off", "auto"] = "auto"  # control-panel overrides, shown on /control
     force_role: Literal["driver", "passenger", "auto"] = "auto"
+    demo: str = "main"  # which demo this state belongs to ("main" = shared; else a visitor's code)

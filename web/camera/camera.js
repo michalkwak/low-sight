@@ -61,7 +61,8 @@
     simulate = simP;
     $("result").textContent = "Checking…";
     $("result").className = "";
-    const sock = new WebSocket(url("/ws/frames"));
+    const code = new URLSearchParams(location.search).get("s"); // ?s=CODE: a private simulator demo
+    const sock = new WebSocket(url(`/ws/frames${code ? `?s=${encodeURIComponent(code)}` : ""}`));
     ws = sock;
     sock.onopen = () => {
       startedAt = performance.now();

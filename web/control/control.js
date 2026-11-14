@@ -2,12 +2,26 @@
 // live status, a live preview of the glasses view, and the operator's controls under "Advanced".
 (() => {
   const $ = (id) => document.getElementById(id);
-  const post = (body) =>
-    fetch("/api/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  // ---- This visitor's demo: ?s=CODE in the URL, created on first visit. Everything below
+  // (controls, live state, the glasses preview, the phone link) uses it, so visitors trying the
+  // simulator at the same time don't drive each other's demo. No code = the shared demo.
+  // Same rule as the server: 4 characters, upper case, no O/0 or I/1. Anything else = no code.
+  const CODE_RE = /^[A-HJ-NP-Z2-9]{4}$/;
+  let demo = (new URLSearchParams(location.search).get("s") || "").trim().toUpperCase();
+  if (demo && !CODE_RE.test(demo)) { demo = ""; history.replaceState(null, "", location.pathname); }
+  const q = () => (demo ? `?s=${encodeURIComponent(demo)}` : "");
+  // Nothing is sent until this page is connected to its own demo, so an early click can never
+  // land on the shared demo (the glasses') while the code is still being fetched.
+  let markReady;
+  const ready = new Promise((r) => { markReady = r; });
+  const post = async (body) => {
+    await ready;
+    return fetch(`/api/control${q()}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  };
   const log = (msg) => { $("log").textContent = `${new Date().toLocaleTimeString()}  ${msg}\n` + $("log").textContent; };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let ws = null;
-  const sendWs = (msg) => ws && ws.readyState === 1 && ws.send(JSON.stringify(msg));
+  const sendWs = async (msg) => { await ready; if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); };
 
   // ---- 1. Stories: one click sets everything up from a clean start ----
   const BASE = { reset: true, speed: 30, pause: false };
@@ -82,7 +96,7 @@
   };
 
   // ---- Advanced (operator) controls ----
-  fetch("/api/scenarios").then((r) => r.json()).then(({ scenarios, current }) => {
+  const loadScenarios = () => fetch(`/api/scenarios${q()}`).then((r) => r.json()).then(({ scenarios, current }) => {
     $("scenario").innerHTML = scenarios.map((s) => `<option ${s === current ? "selected" : ""}>${s}</option>`).join("");
   });
   $("scenario").onchange = (e) => { post({ scenario: e.target.value }); log(`scenario → ${e.target.value}`); };
@@ -212,11 +226,69 @@
   }
 
   function connect() {
-    ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/state`);
-    ws.onmessage = (e) => render(JSON.parse(e.data));
-    ws.onclose = () => setTimeout(connect, 1000);
+    const sock = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/state${q()}`);
+    ws = sock;
+    sock.onmessage = (e) => {
+      const s = JSON.parse(e.data);
+      if (s.demo !== (demo || "main")) {
+        // The server answered from the shared demo: private demos are switched off. Say so and use it.
+        if (demo && s.demo === "main") goShared("off");
+        else return; // a stale message from another demo: ignore
+      }
+      markReady();
+      render(s);
+    };
+    sock.onclose = (e) => {
+      if (ws !== sock) return; // replaced by a newer connection
+      if (e.code === 1013) goShared("busy"); // the server is full: move openly to the shared demo
+      setTimeout(connect, 1000);
+    };
   }
-  connect();
+
+  // Openly switch to the shared demo (never silently: the page says "Shared").
+  function goShared(reason) {
+    demo = "";
+    history.replaceState(null, "", location.pathname);
+    showDemo(false, reason);
+  }
+
+  // ---- Start: get (or keep) this visitor's demo, then connect everything to it ----
+  function showDemo(isPrivate, reason) {
+    $("demo-code").textContent = isPrivate ? demo : "Shared";
+    $("demo-code").classList.toggle("shared", !isPrivate);
+    const phoneUrl = `${location.origin}/phone/${isPrivate ? `?s=${demo}` : ""}`;
+    $("pair-phone").href = phoneUrl;
+    $("demo-note").innerHTML = isPrivate
+      ? `This demo is yours: other visitors don't see your clicks. To hear its alerts on a phone, open
+         <b>${location.host}/phone</b> and enter <b>${demo}</b>.`
+      : reason === "busy"
+        ? "Lots of visitors right now, so you're on the shared demo: other people's clicks may change what you see. Try “New demo” in a minute."
+        : "You're on the shared demo: everyone using it sees the same thing.";
+    $("hud").src = `/hud/?mute${isPrivate ? `&s=${encodeURIComponent(demo)}` : ""}`;
+  }
+  $("new-demo").onclick = async () => {
+    const r = await fetch("/api/demos", { method: "POST" }).then((x) => x.json()).catch(() => null);
+    if (r && r.private) location.search = `?s=${r.code}`;
+    else if (demo) { goShared(r ? r.reason : "busy"); if (ws) ws.close(); }
+    else showDemo(false, r ? r.reason : "busy");
+  };
+  (async () => {
+    let isPrivate = !!demo, reason = null;
+    if (!demo) {
+      const r = await fetch("/api/demos", { method: "POST" }).then((x) => x.json()).catch(() => null);
+      if (r && r.private) {
+        demo = r.code;
+        history.replaceState(null, "", `?s=${demo}`);
+        isPrivate = true;
+      } else {
+        reason = r ? r.reason : "busy";
+      }
+    }
+    showDemo(isPrivate, reason);
+    connect(); // the live socket creates the demo if the server restarted since the link was made
+    await ready;
+    loadScenarios();
+  })();
 
   // ---- Glasses preview: scale the 600×600 HUD to the frame ----
   const fit = () => { $("hud").style.transform = `scale(${$("frame").clientWidth / 600})`; };

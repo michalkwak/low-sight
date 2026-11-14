@@ -12,6 +12,33 @@
   let ws = null;
   let speakingLevel = null;
 
+  // ---- which demo: ?s=CODE from the simulator's link, or a code typed here ----
+  const CODE_RE = /^[A-HJ-NP-Z2-9]{4}$/; // the simulator's codes: no O/0, I/1
+  const clean = (c) => { c = String(c || "").trim().toUpperCase(); return CODE_RE.test(c) ? c : ""; };
+  // Only the link (?s=) or a code typed here: never a remembered one, so a phone that once joined
+  // a visitor's demo can't silently stay off the shared demo the real glasses use.
+  let demo = clean(new URLSearchParams(location.search).get("s"));
+  const q = () => (demo ? `?s=${demo}` : "");
+  function showDemo() {
+    $("code").value = demo;
+    $("code-note").textContent = demo
+      ? `Joined demo ${demo}: you'll hear its alerts. Clear the box and tap Join for the shared demo.`
+      : "Type the 4-character code shown in the simulator to hear your own demo.";
+    $("code-note").classList.toggle("ok", !!demo);
+  }
+  $("join-form").onsubmit = (e) => {
+    e.preventDefault();
+    const typed = $("code").value;
+    const next = clean(typed);
+    if (typed.trim() && !next) { $("code-note").textContent = "That isn't a demo code: 4 letters or numbers, as shown in the simulator."; return; }
+    demo = next;
+    history.replaceState(null, "", demo ? `?s=${demo}` : location.pathname);
+    lastAlertId = null;
+    showDemo();
+    log(demo ? `joined demo ${demo}` : "joined the shared demo");
+    if (ws) ws.close(); // reconnects to the new demo
+  };
+
   // ---- signals ----
   $("car").onclick = () => {
     carConnected = !carConnected;
@@ -35,7 +62,7 @@
 
   function send() {
     const speed = simKmh !== null ? simKmh : gpsKmh;
-    fetch("/api/phone", {
+    fetch(`/api/phone${q()}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ speed_kmh: speed, car_connected: carConnected }),
@@ -96,7 +123,7 @@
   }
 
   function connect() {
-    ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/state`);
+    ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/state${q()}`);
     ws.onmessage = (e) => {
       const s = JSON.parse(e.data);
       const f = (v) => (s.units === "mmol" ? (v / 18).toFixed(1) : Math.round(v));
@@ -133,7 +160,17 @@
       }
     };
     ws.onopen = () => setConn(true);
-    ws.onclose = () => { setConn(false); setTimeout(connect, 1000); };
+    ws.onclose = (e) => {
+      setConn(false);
+      if (e.code === 1013 && demo) {
+        $("code-note").textContent = `Demo ${demo} isn't available right now (the server is busy, or the demo expired). Open the simulator again for a new code, or clear the box for the shared demo.`;
+        $("code-note").classList.remove("ok");
+        setTimeout(connect, 5000);
+        return;
+      }
+      setTimeout(connect, 1000);
+    };
   }
+  showDemo();
   connect();
 })();

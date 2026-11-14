@@ -70,6 +70,14 @@
     .alert.urgent { animation: urgent 1.3s ease-in-out infinite; }
     @keyframes urgent { 50% { box-shadow: 0 0 0 4px rgba(255, 90, 54, 0.25); } }
 
+    /* Your demo: the pairing code */
+    .demo-card { margin-bottom: 18px; }
+    .demo-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+    .demo-code { font: 800 34px/1 var(--font); letter-spacing: 0.22em; color: var(--cyan); font-variant-numeric: tabular-nums;
+      padding: 8px 14px; border-radius: 12px; background: rgba(62,230,193,0.08); border: 1px dashed rgba(62,230,193,0.45); }
+    .demo-code.shared { color: var(--dim); letter-spacing: 0.04em; font-size: 22px; border-color: var(--line-strong); background: none; }
+    .demo-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .demo-btns .btn { padding: 9px 12px; font-size: 14px; }
     /* Glasses preview over a road: screen blending = the additive display (black is see-through) */
     .preview { position: sticky; top: 16px; }
     .lens { position: relative; width: 100%; aspect-ratio: 1; border-radius: 22px; overflow: hidden; border: 1px solid var(--line-strong);
@@ -170,16 +178,22 @@
         <div id="log"></div>
       </details>
       <p class="disclaimer">Decision support only, not medical advice. LowSight never suggests insulin or carbohydrate doses.
-        Glucose data here is simulated. Everyone using this link shares one demo, so another visitor's clicks change what you see.</p>
+        Glucose data here is simulated. Your demo is private to this link (its code is in the address bar); share the link to let someone watch the same demo.</p>
     </div>
 
     <aside class="preview">
+      <section class="panel demo-card">
+        <span class="eyebrow">Your demo</span>
+        <div class="demo-row"><div class="demo-code" id="demo-code">····</div>
+          <div class="demo-btns"><a class="btn" id="pair-phone" target="_blank" rel="noopener">📱 Phone page</a><button class="btn" id="new-demo">New demo</button></div></div>
+        <p class="hint" id="demo-note" style="margin:10px 0 0">Setting up your demo…</p>
+      </section>
       <section class="panel">
         <h2>Through the glasses</h2>
         <p class="hint">A live preview of the display, blended over a road at dusk the way the see-through lens shows it.</p>
         <div class="lens" id="frame">
           <div class="road"></div><div class="lane"></div><div class="dash"></div>
-          <iframe id="hud" src="/hud/?mute" title="LowSight on the glasses"></iframe>
+          <iframe id="hud" title="LowSight on the glasses"></iframe>
         </div>
         <p class="cap">Click the view, then use ← / → to switch views and Enter to acknowledge. For the real look, open the
           <a href="/hud/" target="_blank">full view</a> with <a href="https://chromewebstore.google.com/detail/jpjlmmodokemlepklkdbimceggpbjcll" target="_blank" rel="noopener">Meta's simulator</a>.</p>

@@ -26,6 +26,12 @@
     #start.running::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--cyan); animation: live 1.6s ease-in-out infinite; }
     @keyframes live { 50% { opacity: .3; } }
     .startnote { color: var(--dim); font-size: 13px; margin: 10px 2px 0; }
+    .join { display: flex; gap: 10px; }
+    .join input { flex: 1; min-width: 0; font: 800 26px/1 var(--font); letter-spacing: 0.32em; text-transform: uppercase; text-align: center;
+      color: var(--fg); background: rgba(0,0,0,0.25); border: 1px solid var(--line-strong); border-radius: 12px; padding: 10px 8px; }
+    .join input:focus { outline: none; border-color: var(--cyan); }
+    .join .btn { padding: 0 22px; font-size: 16px; }
+    #code-note.ok { color: var(--cyan); }
 
     /* Blood sugar */
     .bg { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
@@ -92,6 +98,15 @@
     <section class="panel">
       <button class="btn primary" id="start">Start LowSight</button>
       <p class="startnote">Allows speech, notifications and location, and keeps the screen awake.</p>
+    </section>
+
+    <section class="panel">
+      <span class="eyebrow">Demo code</span>
+      <form class="join" id="join-form">
+        <input id="code" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD" aria-label="Demo code">
+        <button class="btn" id="join" type="submit">Join</button>
+      </form>
+      <p class="startnote" id="code-note">Type the 4-character code shown in the simulator to hear your own demo.</p>
     </section>
 
     <section class="panel">

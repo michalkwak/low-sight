@@ -168,7 +168,11 @@ Limits of the free tier:
   `/control/` a few minutes before a demo.
 - **No vision model:** torch and CLIP don't fit in 512 MB. The camera page says the model isn't installed; use
   its simulate buttons, the phone's "I'm driving" / "I'm a passenger", or the control-panel seat override.
-- **One shared demo state and no login:** anyone with the `/control/` link can change it. Don't share that link.
+- **Per-visitor demos, no login:** each simulator visitor gets a private demo with a 4-character code (`/control/?s=CODE`);
+  the phone page joins it by code. Only demos with an open page are updated (CPU), up to `MAX_ACTIVE_DEMOS` (15);
+  beyond that, and for the glasses and links without a code, visitors share the "main" demo. Idle demos are deleted
+  after 30 minutes. Off switch: set `PER_VISITOR_DEMOS=false` in Render's environment and restart, and everyone
+  shares the main demo again. Demos live in memory, so a restart or deploy resets them (old links get a fresh demo).
 - A restart (deploy or wake-up) resets the scenario and clears any seat or override.
 
 ## Layout
