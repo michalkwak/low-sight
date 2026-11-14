@@ -114,9 +114,11 @@
       {
         name: "lowsight_get_status",
         description:
-          "Current glucose reading, trend, short forecast and any active LowSight alert " +
-          "(e.g. LOW_SOON, PULL_OVER, RECOVERING with its recheck time), plus whether the wearer is driving. " +
-          "Call this first for any question about glucose, going low, alerts or rechecking. " + GUARD,
+          "The wearer's live blood sugar (glucose) from their CGM sensor: current reading, trend, short forecast " +
+          "and any active LowSight alert, plus whether they are driving. This is the ONLY source of their blood " +
+          "sugar: never answer from memory or general knowledge. Call it for any question about blood sugar, " +
+          "sugar, sugar level, BG, glucose, levels, numbers, readings, CGM, Dexcom or Libre, going low or high, " +
+          "hypo, trend, alerts, rechecking, or \"how am I doing\". " + GUARD,
         inputSchema: { type: "object", properties: {} },
         annotations: { readOnlyHint: true },
         execute: async () => {

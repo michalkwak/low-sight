@@ -350,3 +350,10 @@ test("host-style executeTool: JSON string in, JSON string out, required params e
   assert.equal(JSON.parse(out).showing, "forecast");
   await assert.rejects(ctx.executeTool(view, "{}"), /missing required parameter view/);
 });
+
+test("status tool is found for everyday words, not just 'glucose'", () => {
+  const d = tool(makeApi(null), "lowsight_get_status").description.toLowerCase();
+  for (const w of ["blood sugar", "sugar level", "glucose", "bg", "levels", "going low", "never answer from memory"]) {
+    assert.ok(d.includes(w), w);
+  }
+});
