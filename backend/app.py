@@ -153,7 +153,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="LowSight", lifespan=lifespan)
-# Hackathon: open CORS. No X-Frame-Options/frame-ancestors so DisplayGlasses.dev can iframe the HUD.
+# Hackathon: open CORS. No X-Frame-Options/frame-ancestors, so /hud/dev.html (and any simulator) can iframe the HUD.
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 

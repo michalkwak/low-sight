@@ -8,19 +8,22 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 - [x] Repo skeleton, config, data models, demo clock, `/api/health`, static pages (M0)
 - [x] Four synthetic glucose scenarios, replay source, baseline forecaster, trend arrows (M1)
 - [x] Live state over `/ws/state`; ambient HUD with value, arrow, sparkline and forecast band (M1)
+- [x] HUD redesign: value in a ring with an orbiting trend spike, alert-coloured ring, sparkline moved to the Forecast view; `/hud/dev.html` slider page (E0W)
+- [x] Chose the plain HUD over the React + UI Toolkit version (~23 KB vs ~500 KB); the React one is archived in `archive/hud-app/`
 - [x] Phone trip detection (speed + car connection) and driver/passenger context
 - [x] Phone page (`/phone`): sends trip signals, speaks alerts, shows notifications
 - [x] Control panel: scenario, clock, jump to crossing, in-car and seat overrides, units
 - [x] Alert engine with all five levels, dedupe, hysteresis, ack, PULL_OVER repeat (M2, M4)
 - [x] Camera page, `/ws/frames` with the CLIP detector slot, seat feedback on the HUD (M3)
 - [x] HUD meets Meta's web-app metadata rules; forecast floor; stale states (M5, partly)
-- [x] 51 tests passing (alert engine, app wiring, forecast, trip detection, seat check, eval script)
+- [x] 52 tests passing (alert engine, app wiring, forecast, trip detection, seat check, eval script)
 
 ---
 
 ## 1. Do first: check the setup works
 
-- [ ] Install `cloudflared` and open the HUD over the tunnel in a simulator: Meta's **Meta Ray-Ban Display Simulator** Chrome extension (official) or **DisplayGlasses.dev**. Confirm it loads, shows a moving value, and that ←/→ and Enter (the simulator's D-pad and Select) work.
+- [x] Open the HUD in Meta's **Meta Ray-Ban Display Simulator** Chrome extension on `localhost`: it loads and runs.
+- [ ] Install `cloudflared` (`winget install --id Cloudflare.cloudflared`) and repeat over the tunnel URL; confirm ←/→ and Enter (the simulator's D-pad and Select) work and the "View on Glasses QR" is generated.
 - [ ] Open `/phone` on a real phone over the tunnel. Check GPS speed, the wake lock, speech, and that notifications appear.
 - [ ] **Check whether a browser notification from `/phone` shows on the glasses.** Meta confirmed this for phone app notifications, but not for browser pages. If it doesn't, rely on speech plus the HUD, and say so in the pitch.
 - [ ] Check that speech from the phone page plays through the glasses speakers.
@@ -73,10 +76,12 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 
 ## 5. M5: polish and numbers
 
-- [ ] Experimental React HUD: source and 13 tests exist under `web/hud-app/`, but it is not served at `/hud/`. Use Node 24.15+ (`.nvmrc`) for `npm ci`, `npm test` and `npm run build`; this checkout's Node 20.11 cannot run its locked toolchain.
-
 - [ ] HUD legibility in the simulator at Medium size over the **brightest** background; fix contrast and sizes.
-- [ ] HUD shows useful state within 1 s of opening (sessions are short). The first load is ~15 KB in 4 requests (Meta's budget: under 300 KB and 15 requests), and the server pushes state on connect; time it on the glasses.
+- [ ] Review the ring + spike design against plan §5.8:
+  - [ ] Position: the gauge sits upper-centre, where the plan had the value top right to keep the road view clear. Check it over a driving background.
+  - [ ] Colour-blind safety: the spike blends green → red when falling. The angle carries the meaning too; consider a small arrow inside the ring.
+  - [ ] PULL_OVER: the banner must not crowd the ring.
+- [ ] HUD shows useful state within 1 s of opening (sessions are short). The first load is ~23 KB in 4 requests (Meta's budget: under 300 KB and 15 requests), and the server pushes state on connect. Time it in Chrome with network and CPU throttling, then on the glasses.
 - [x] Stale-data states: "No CGM data", "x min ago", "Reconnecting…". Still to do: test by killing the backend with the HUD open.
 - [x] HUD about view: "Decision support, not medical advice" disclaimer, plus the controls.
 - [x] Cap the forecast at 40 mg/dL (and 400) so the band doesn't dip to unrealistic values on steep drops.
@@ -90,7 +95,7 @@ Put your name in brackets after a task when you take it, e.g. `[Anna]`.
 - [ ] Final README: run steps, screenshots, architecture.
 - [ ] Pitch deck: problem → demo → why first-person view → numbers → path to production → disclaimer.
 - [ ] Use the one-liner and description from the submission draft; add the real vision accuracy and forecast error.
-- [ ] Record a backup demo video in the simulator (Point of View mode, driving background).
+- [ ] Record a backup demo video with the simulator's recorder (driving background).
 - [ ] Rehearse the 2-min demo script (plan §11) until it runs **3 times in a row** without touching code. Use **Jump to −20 min** so LOW_SOON shows before PULL_OVER.
 - [ ] Check every judging criterion in plan §1.1 against the demo and slides.
 

@@ -9,7 +9,7 @@
 - **Event:** Junction hackathon, Meta glasses challenge (48 h).
 - **Theme:** "How a first-person POV enables new or better interactions in everyday life."
 - **Challenge page:** https://hackjunction.app/participate/45/challenges/342. *The full requirements and judging criteria are not in this file. Paste them into §1.1 before building and check §10 against them.*
-- **Hardware:** We have **no physical glasses**. The HUD runs in the **DisplayGlasses.dev** simulator (https://displayglasses.dev), which previews web apps for Meta Ray-Ban Display in the browser.
+- **Hardware:** We have **no physical glasses**. The HUD runs in Meta's official **Meta Ray-Ban Display Simulator** Chrome extension (<https://chromewebstore.google.com/detail/jpjlmmodokemlepklkdbimceggpbjcll>), which overlays a 600×600 glasses frame on the page in Chrome. Meta's developer docs: <https://wearables.developer.meta.com>.
 
 ### 1.1 Challenge judgement
 
@@ -58,7 +58,10 @@ A phone on the dashboard can show a number. It can't tell whether you're the dri
 | Glasses sessions (Web App **and** DAT camera) last **≤ 3 min** and are **started only by the wearer** | No continuous on-glasses detection or alerting. **Trip detection and alert delivery live on the phone.** Vision is a one-off seat check (decides in ~3 s, well inside a session). The HUD is designed for short glances. |
 | The phone can push notifications to the display, and phone audio plays through the glasses speakers | Alerts = phone TTS (heard through the glasses) + phone notification (seen on the display). Tapping the notification opens the HUD for detail. |
 | Hosted at a **public HTTPS URL** (simulator loads it via URL, glasses via QR) | Serve the HUD over HTTPS (tunnel or static deploy). Backend sockets must be **wss://**. |
-| Some sites block iframe embedding in the simulator | Don't send `X-Frame-Options: DENY` or a restrictive `frame-ancestors` CSP from the HUD host. |
+| The glasses have a slow link and CPU: first load **under 300 KB and fewer than 15 requests**, display refreshes at **30 Hz** | Plain HTML/CSS/JS HUD, no framework bundle (~23 KB in 4 requests). No 60 fps loops; animate only while something changes. |
+| Web Apps get a supported subset of **`speechSynthesis`** through the glasses speaker (one en-US voice) | The HUD can speak alerts itself while it is open. Keep the same information on screen, never speech-only. |
+| Installing on real glasses needs Developer Mode in the Meta AI app, then **Connect Web App** with the HTTPS URL, or Meta's install QR (a plain URL QR doesn't work) | The tunnel URL is enough. Glasses software v125+ and Meta AI app v272+. |
+| Don't block iframe embedding | The HUD's own `/hud/dev.html` embeds it. Don't send `X-Frame-Options: DENY` or a restrictive `frame-ancestors` CSP from the HUD host. |
 
 ---
 
@@ -103,7 +106,7 @@ The phone is the always-on part. The glasses are opened briefly, by the wearer: 
 - **Backend:** Python 3.11, FastAPI, uvicorn, websockets, numpy, pandas, pydantic.
 - **Vision:** `open_clip_torch` (ViT-B-32, `laion2b_s34b_b79k`) on CPU, about 1–2 fps. Pillow for decoding.
 - **Forecasting:** numpy baseline. Optional scikit-learn ridge regression trained on CITY.
-- **HUD, control and camera pages:** plain HTML/CSS/vanilla JS, served as static files by FastAPI. No build step, so it's quick to iterate in the simulator.
+- **HUD, control and camera pages:** plain HTML/CSS/vanilla JS, served as static files by FastAPI. No build step, so it's quick to iterate in the simulator. (A React + Meta UI Toolkit HUD was tried and archived in `archive/hud-app/`: its ~500 KB bundle and runtime Google Fonts break the first-load budget in §3, and a glanceable HUD doesn't need the toolkit's lists and menus.)
 - **HTTPS:** `cloudflared tunnel --url http://localhost:8000` (or ngrok) gives one public HTTPS origin for everything, so the HUD can use `wss://` on the same host.
 
 ### 4.2 Repo layout
@@ -134,10 +137,13 @@ lowsight/
     hub.py                 # connection manager, broadcast AppState
   web/
     hud/index.html, hud.css, hud.js         # the glasses app
-    hud/audio/*.mp3                          # pre-generated spoken alerts
+    hud/dev.html                             # slider page that drives the HUD without the backend
+    hud/audio/*.mp3                          # optional fallback audio (speechSynthesis is the main path)
     control/index.html, control.js           # demo control panel
     camera/index.html, camera.js             # webcam/video → frames (stands in for the glasses camera session)
     phone/index.html, phone.js, sw.js        # phone companion: trip signals, speaks alerts, notifications
+  archive/
+    hud-app/               # shelved React + UI Toolkit HUD (not served)
   data/
     scenarios/*.csv        # synthetic demo traces (committed)
     city/                  # CITY data (gitignored, never committed)
@@ -273,20 +279,21 @@ Inputs every tick: `reading`, `trend`, `forecast`, `driving` (the full `DrivingS
 **Sessions:** the wearer opens the HUD; it closes after ≤ 3 min. Design for a glance: the important information must be on screen in the first second after it opens (connect fast, show the last known state immediately, no intro). Typical opens: (1) before setting off, for the seat check and pre-drive check; (2) a quick glance while driving; (3) tapping a LowSight notification.
 
 **Layouts:**
-- **Ambient (NONE, not driving):** top right: large glucose value (e.g. `6.4`) + trend arrow + unit. Under it a 3 h sparkline (thin 2 px line, dimmed) with a dotted forecast segment and a faint band. Small badge when driving: "● Driver" once the seat check confirmed it, otherwise "● In car".
-- **Seat check result:** brief "Driver seat ✓" or "Passenger" line when the check decides during the session.
-- **Driving + NONE:** value and arrow only. **No sparkline while driving**, to keep visual load minimal.
-- **LOW_SOON:** amber (#FFB020) outline banner: "LOW IN ~20 MIN" / "Plan a stop". Value + arrow.
-- **PULL_OVER:** strong red-orange (#FF5A36) banner, large text "PULL OVER", line "Stop safely · fast carbs", value + arrow. Gentle pulse on the border only (≤1 Hz, no full-screen flashing).
+- **Glucose gauge (all states):** upper centre: the glucose value and unit inside a ring. A **trend spike** orbits the ring along a dotted track, like a CGM arrow: right = steady, up = rising, down = falling, reaching vertical at ±3 mg/dL/min. It glides to each new angle and blends green → orange (rising) or green → red (falling; full red by −1.5 mg/dL/min). The ring takes the alert colour. The 3 h sparkline with the dotted forecast and band is on the **Forecast** view, so the main view stays minimal whether or not you're driving.
+- **Context (top left):** "Driver" once the seat check confirmed it, "Passenger", or "In car"; the seat-check line; "x min ago" when stale.
+- **Seat check result:** brief "Driver seat ✓" or "Passenger seat" line when the check decides during the session.
+- **LOW_SOON:** amber (#FFB020) ring and banner (a coloured rule above the text, no filled box): "LOW IN ~20 MIN" / "Plan a stop".
+- **PULL_OVER:** strong red-orange (#FF5A36) ring and banner, large text "PULL OVER", line "Stop safely · fast carbs". Gentle pulse on the ring and rule only (≤1 Hz, no full-screen flashing); it stops once acknowledged.
 - **PRE_DRIVE:** amber "CHECK BEFORE DRIVING" / "Treat before you set off".
-- **RECOVERING:** green-cyan (#3EE6C1) "WAIT · RECHECK" + countdown mm:ss.
-- **No data / disconnected:** grey "No CGM data" or "Reconnecting…". Never show a stale value without marking it (dim it and add "x min ago").
+- **RECOVERING:** green-cyan (#3EE6C1) ring, "WAIT · RECHECK" + countdown mm:ss.
+- **No data / disconnected:** grey ring, spike hidden, "No CGM data" or "Reconnecting…". Never show a stale value without marking it (grey it and add "x min ago").
+- **Open design questions:** the upper-centre gauge vs keeping the road view clear (the first design had the value top right), and green/red for colour-blind wearers (the angle also carries the trend). Check both in the simulator over a driving background.
 
-**Typography:** system sans, bold. Glucose value ~120 px, banner title ~56 px, secondary ~32 px. Never below 28 px.
+**Typography:** system sans, bold. Glucose value 72 px in the ring (62 px for 4 characters), banner title ~52 px, secondary 28–30 px. Never below 28 px.
 
 **Input:** `Enter` = acknowledge the current alert. `←/→` = cycle views (Glucose / Forecast detail / About & disclaimer). `↑/↓` = unused (reserved). Show focus states clearly.
 
-**Audio:** the **phone** is the primary audio path (§5.11); its speech plays through the glasses speakers (confirmed by Meta). While the HUD is open it may also play the matching mp3 from `hud/audio/`, but must not double up with the phone (skip if the phone already spoke this alert `id`). For the demo, the **control panel can also speak** the alert through the laptop speakers ("Stage audio"), so audio always works on stage.
+**Audio:** the **phone** is the primary audio path (§5.11); its speech plays through the glasses speakers (confirmed by Meta). While the HUD is open it may also speak the alert with `speechSynthesis` (supported on the glasses), but must not double up with the phone: it speaks only if no phone reported this alert `id` within 2.5 s. For the demo, the **control panel can also speak** the alert through the laptop speakers ("Stage audio"), so audio always works on stage.
 
 **Connection:** derive the ws URL from `location` (`wss:` when `https:`). Auto-reconnect with backoff.
 
@@ -322,17 +329,14 @@ SCENARIO=falling_while_driving  CITY_PATH=data/city/  CLIP_MODEL=ViT-B-32  CLIP_
 
 ## 7. Running it
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install fastapi "uvicorn[standard]" numpy pandas pydantic pydantic-settings pillow open_clip_torch torch scikit-learn pytest
-python scripts/make_scenarios.py && python scripts/make_audio.py
-uvicorn backend.app:app --port 8000
+uv sync --extra vision --group dev
+uv run uvicorn backend.app:app --port 8000
 cloudflared tunnel --url http://localhost:8000      # → https://<random>.trycloudflare.com
 ```
 1. Open `https://<tunnel>/control/` on the laptop. On the phone paired with the glasses, open `https://<tunnel>/phone/` and tap **Start**. Open `https://<tunnel>/camera/` on the device you'll use as the "glasses camera" for the seat check.
-2. On https://displayglasses.dev paste `https://<tunnel>/hud/` into **Web App Link** → Load. Position **Top Right** or **Mid Right**, Medium. Use **Point of View** mode with a street/driving background for screenshots, and **Record** for the demo video.
-3. Click into the simulator iframe so arrow keys and Enter reach the HUD.
+2. In Chrome, open `/hud/` (localhost or the tunnel) and turn on the **Meta Ray-Ban Display Simulator** extension. Use a street/driving background for screenshots and its recorder for the demo video. The simulator's D-pad and Select send the arrow keys and Enter.
 
-Write these steps into `README.md`.
+The full steps are in `README.md`.
 
 ---
 
@@ -351,7 +355,7 @@ Write these steps into `README.md`.
 | # | Target time | Deliverable | Done when |
 |---|---|---|---|
 | M0 | h0–2 | Repo skeleton, config, models, DemoClock, `/api/health`, static mounts | `uvicorn` runs, `/hud/` serves a black page |
-| M1 | h2–6 | Synthetic scenarios + ReplaySource + baseline forecaster + `/ws/state` + HUD ambient layout | HUD in DisplayGlasses.dev (via tunnel) shows a live, moving glucose value + arrow |
+| M1 | h2–6 | Synthetic scenarios + ReplaySource + baseline forecaster + `/ws/state` + HUD ambient layout | HUD in Meta's simulator shows a live, moving glucose value + trend |
 | M2 | h6–10 | Alert engine (all 5 levels) + unit tests + control panel with in-car/seat overrides + **phone page speaks and notifies alerts** | Forcing in-car on `falling_while_driving` shows LOW_SOON then PULL_OVER at the right times, spoken by the phone. Tests pass. |
 | M3 | h10–16 | CLIP detector + seat smoothing + camera page (webcam + video modes, 3-min seat-check session) | Pointing a phone at a steering wheel (or a POV video) confirms "driver" within ~3–5 s. Passenger/indoor frames don't. |
 | M4 | h16–22 | PRE_DRIVE (seat check + trip start), RECOVERING, ack via Enter, audio mp3s, stage audio, dedupe/escalation | Full scenario runs hands-free end to end: phone detects trip, alerts spoken by the phone |
@@ -379,7 +383,7 @@ Write these steps into `README.md`.
 4. **Why POV (15 s):** the phone knows you're in a car; only the first-person view knows you're the driver. Same glucose, different behaviour for the driver and a passenger. No interaction needed, eyes stay up.
 5. **Credibility (15 s):** vision accuracy on our labelled frames, forecaster RMSE (CITY, if allowed), and a path to production that respects the platform: 3-minute wearer-started sessions, phone does the always-on work. Decision support, not dosing advice.
 
-**Fallbacks:** in-car and seat override toggles if the phone or vision is flaky on stage. Simulated-speed slider on the phone page. Pre-recorded POV video in camera mode B. Control panel "Stage audio". Full backup screen recording from DisplayGlasses.dev.
+**Fallbacks:** in-car and seat override toggles if the phone or vision is flaky on stage. Simulated-speed slider on the phone page. Pre-recorded POV video in camera mode B. Control panel "Stage audio". Full backup recording from the simulator's recorder.
 
 ---
 
@@ -389,5 +393,5 @@ Write these steps into `README.md`.
 - **Phone web page limits:** a backgrounded or locked browser tab may stop GPS, speech and timers. For the demo keep the page in front with the wake lock. A native app (§8) fixes this.
 - **Web notifications on the glasses:** confirmed for phone notifications in general, unverified for a browser page. Speech through the glasses speakers is the main channel.
 - **CGM lag and low-range inaccuracy:** this is part of why forecasting matters. Mention it in Q&A.
-- **Simulator ≠ hardware:** HUD web-app audio and real camera streaming via DAT are unverified on device. State this clearly and show the path to production.
+- **Simulator ≠ hardware:** Meta's docs say web-app `speechSynthesis` plays through the glasses speaker, but we haven't heard it on a device; real camera streaming via DAT is unbuilt. State this clearly and show the path to production.
 - **Data terms:** CITY stays local. Demo on synthetic traces.

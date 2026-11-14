@@ -1,6 +1,6 @@
 .venv/
 node_modules/
-web/hud-app/dist/
+archive/hud-app/dist/
 __pycache__/
 *.pyc
 .pytest_cache/
