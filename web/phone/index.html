@@ -27,7 +27,7 @@
     @keyframes live { 50% { opacity: .3; } }
     .startnote { color: var(--dim); font-size: 13px; margin: 10px 2px 0; }
     .join { display: flex; gap: 10px; }
-    .join input { flex: 1; min-width: 0; font: 800 26px/1 var(--font); letter-spacing: 0.32em; text-transform: uppercase; text-align: center;
+    .join input { flex: 1; min-width: 0; font: 700 26px/1 var(--mono); letter-spacing: 0.32em; text-transform: uppercase; text-align: center;
       color: var(--fg); background: rgba(0,0,0,0.25); border: 1px solid var(--line-strong); border-radius: 12px; padding: 10px 8px; }
     .join input:focus { outline: none; border-color: var(--cyan); }
     .join .btn { padding: 0 22px; font-size: 16px; }
@@ -35,7 +35,7 @@
 
     /* Blood sugar */
     .bg { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
-    #r-value { font-size: 52px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+    #r-value { font-family: var(--display); font-size: 52px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
     #r-value .u { font-size: 17px; font-weight: 600; color: var(--dim); margin-left: 6px; letter-spacing: 0; }
     #r-value.ok { color: var(--green); } #r-value.warn { color: var(--amber); } #r-value.bad { color: var(--red); } #r-value.stale { color: var(--faint); }
     .trend { font-size: 13px; font-weight: 600; padding: 4px 11px; border-radius: 999px; background: rgba(148,163,184,0.12); color: #cbd5e1; white-space: nowrap; }
@@ -46,7 +46,7 @@
     #alert { --c: var(--amber); display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 14px; margin-top: 14px;
       border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); background: linear-gradient(90deg, color-mix(in srgb, var(--c) 18%, transparent), transparent 75%); }
     #alert .ai { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex: none; font-size: 19px; color: var(--c); background: color-mix(in srgb, var(--c) 18%, transparent); }
-    #alert .t { font-size: 19px; font-weight: 800; color: var(--c); line-height: 1.2; }
+    #alert .t { font-family: var(--display); font-size: 19px; font-weight: 700; color: var(--c); line-height: 1.2; }
     #alert .l { font-size: 15px; margin-top: 2px; }
     #alert.PULL_OVER { --c: var(--red); animation: urgent 1.3s ease-in-out infinite; }
     #alert.PULL_OVER.acked { animation: none; }

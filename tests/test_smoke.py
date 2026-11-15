@@ -52,3 +52,11 @@ def test_start_page_simulator_and_muted_preview():
         assert 'data-story="falling"' in sim and 'id="demo-code"' in sim
         assert "/hud/?mute" in c.get("/control/control.js").text  # muted preview, joined to the visitor's demo
         assert "if (MUTE) return;" in c.get("/hud/hud.js").text
+
+
+def test_guided_demo_page():
+    with TestClient(app) as c:
+        tour = c.get("/tour/")
+        assert tour.status_code == 200 and 'id="start"' in tour.text and "tour.js" in tour.text
+        assert c.get("/tour/tour.js").status_code == 200
+        assert 'href="/tour/"' in c.get("/start/").text  # the start page's main button

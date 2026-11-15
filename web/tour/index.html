@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LowSight – 60-second demo</title>
+  <meta name="description" content="Watch LowSight warn a driver with type 1 diabetes about a falling blood sugar, through Meta Ray-Ban Display glasses. A guided 60-second demo.">
+  <link rel="icon" href="/hud/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/start/theme.css">
+  <style>
+    header { max-width: 1100px; margin: 0 auto; padding: 18px 22px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    header nav { display: flex; gap: 16px; font-size: 14px; flex-wrap: wrap; }
+    main { max-width: 1100px; margin: 0 auto; padding: 18px 22px 40px; display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 28px; align-items: start; }
+    @media (max-width: 880px) { main { grid-template-columns: 1fr; } }
+
+    /* The glasses view over a road at dusk; screen blending = the see-through additive display */
+    .lens { position: relative; width: 100%; aspect-ratio: 1; border-radius: 26px; overflow: hidden; border: 1px solid var(--line-strong); box-shadow: var(--shadow);
+      background: linear-gradient(180deg, #1b2a40 0%, #3d5675 30%, #6f7f91 38%, #2f3a2e 38.5%, #1c231b 100%); }
+    .lens .road { position: absolute; inset: 38.5% 0 0 0; background: #24272c; clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%); }
+    .lens .lane { position: absolute; left: 50%; top: 40%; bottom: 0; width: 1.6%; transform: translateX(-50%);
+      background: repeating-linear-gradient(180deg, #d9d6c4 0 7%, transparent 7% 15%); clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%); opacity: .55; }
+    .lens iframe { position: absolute; left: 0; top: 0; width: 600px; height: 600px; border: 0; transform-origin: 0 0; mix-blend-mode: screen; }
+    .lenscap { color: var(--dim); font-size: 13px; margin: 0 0 8px 4px; }
+    .play { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(6, 9, 14, 0.62); backdrop-filter: blur(2px); }
+    .play.hidden { display: none; }
+    .play button { font: 700 20px var(--display); color: #032019; background: linear-gradient(180deg, #4bf0cb, var(--cyan-deep)); border: 0; border-radius: 999px;
+      padding: 18px 28px; cursor: pointer; box-shadow: 0 10px 30px rgba(18,184,146,.35); }
+    .play small { display: block; margin-top: 10px; color: #cfd8e3; font-size: 13.5px; text-align: center; }
+
+    /* Story panel */
+    .kicker { color: var(--dim); font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { font-size: clamp(26px, 3.4vw, 36px); letter-spacing: -.02em; line-height: 1.12; margin: 6px 0 10px; }
+    .steps { display: flex; gap: 6px; margin: 18px 0 14px; }
+    .steps i { flex: 1; height: 5px; border-radius: 3px; background: rgba(148,163,184,.2); overflow: hidden; position: relative; }
+    .steps i.done { background: var(--cyan); }
+    .steps i.now::after { content: ""; position: absolute; inset: 0; background: var(--cyan); animation: fill var(--dur, 8s) linear forwards; transform-origin: left; }
+    .steps.paused i.now::after { animation-play-state: paused; }
+    @keyframes fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    .caption { min-height: 150px; }
+    .caption .num { color: var(--cyan); font-family: var(--mono); font-weight: 700; font-size: 13px; }
+    .caption h2 { font-size: 24px; letter-spacing: -.01em; margin: 4px 0 6px; }
+    .caption p { font-size: 17px; color: #d6dde6; margin: 0; }
+    .behind { margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid var(--line); font-size: 13.5px; color: var(--dim); }
+    .behind b { color: #cbd5e1; font-weight: 600; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .end { display: none; }
+    .end.on { display: block; }
+    .end ul { margin: 10px 0 0; padding-left: 20px; color: #d6dde6; }
+    .end li { margin: 6px 0; }
+    .end .controls .btn.primary { font-size: 16px; }
+    .note { color: var(--faint); font-size: 12.5px; margin-top: 18px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="brand" href="/start/" style="color:inherit">
+      <svg aria-hidden="true" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="0.7" y2="1"><stop offset="0" stop-color="#ff6b6b"/><stop offset="1" stop-color="#c81d3a"/></linearGradient></defs><path d="M32 3C25 15 11 28 11 41.5a21 21 0 0 0 42 0C53 28 39 15 32 3z" fill="url(#g)"/><path d="M17 42c4.5-6.3 9.5-9.3 15-9.3s10.5 3 15 9.3c-4.5 6.3-9.5 9.3-15 9.3s-10.5-3-15-9.3z" fill="#fff"/><circle cx="32" cy="42" r="6.2" fill="#2a1016"/><circle cx="34.2" cy="39.8" r="1.9" fill="#fff"/></svg>
+      <div class="name">Low<span>Sight</span></div>
+    </a>
+    <nav><a href="/start/">About</a><a href="/control/">Try the simulator yourself →</a></nav>
+  </header>
+
+  <main>
+    <div>
+      <p class="lenscap">👓 What the driver sees through Meta Ray-Ban Display glasses</p>
+      <div class="lens" id="frame">
+        <div class="road"></div><div class="lane"></div>
+        <iframe id="hud" title="What the driver sees through Meta Ray-Ban Display glasses"></iframe>
+        <div class="play" id="play"><div><button id="start">▶ Play the 60-second demo</button><small>Turn your sound on: alerts are spoken, as through the glasses.</small></div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="kicker">LowSight · Meta Ray-Ban Display</div>
+      <h1>Low blood sugar warnings that keep a driver's eyes on the road.</h1>
+
+      <div id="story">
+        <div class="steps" id="steps"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="caption">
+          <div class="num" id="num">5 short steps</div>
+          <h2 id="title">See it work in one minute</h2>
+          <p id="text">Press play. You'll see and hear what a driver with type 1 diabetes gets from LowSight as their blood sugar falls.</p>
+        </div>
+        <div class="behind hidden" id="behind"></div>
+        <div class="controls">
+          <button class="btn" id="pause" disabled>❚❚ Pause</button>
+          <button class="btn" id="skip" disabled>Skip to the end</button>
+          <button class="btn" id="replay" disabled>↻ Replay</button>
+        </div>
+      </div>
+
+      <div class="end" id="end">
+        <div class="num" style="color:var(--cyan);font-weight:800">That's LowSight</div>
+        <h2 style="font-size:24px;margin:4px 0 6px">The phone senses the trip, the glasses confirm the driver, and audio warns them, eyes up.</h2>
+        <ul>
+          <li><b>Early:</b> it forecasts a low up to 30 minutes ahead, not just when it's already happening.</li>
+          <li><b>Eyes on the road:</b> spoken through the glasses, acknowledged with a pinch or by voice.</li>
+          <li><b>Knows who's driving:</b> a first-person seat check, so passengers aren't told to pull over.</li>
+        </ul>
+        <div class="controls">
+          <a class="btn primary" id="try" href="/control/">Try it yourself →</a>
+          <a class="btn" href="/start/">How it works and all links</a>
+          <button class="btn" id="replay2">↻ Watch again</button>
+          <a class="btn" data-video hidden>🎬 Watch the full recording</a>
+        </div>
+      </div>
+
+      <p class="note">Simulated blood sugar, replayed fast. Decision support only, not medical advice.
+        Validated on real Meta Ray-Ban Display glasses: the display, and spoken alerts through their speakers.</p>
+    </div>
+  </main>
+  <script src="tour.js"></script>
+  <script src="/start/video.js"></script>
+</body>
+</html>

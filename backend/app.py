@@ -525,5 +525,5 @@ async def ws_frames(ws: WebSocket, s: str | None = None):
             await ws.close()
 
 
-for name in ("start", "hud", "control", "camera", "phone"):
+for name in ("start", "tour", "hud", "control", "camera", "phone"):
     app.mount(f"/{name}", StaticFiles(directory=settings.WEB_DIR / name, html=True), name=name)

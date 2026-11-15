@@ -43,7 +43,7 @@
     .status { display: grid; grid-template-columns: 1.3fr 1fr 1fr 0.8fr; gap: 12px; }
     @media (max-width: 760px) { .status { grid-template-columns: 1fr 1fr; } }
     .tile { padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); }
-    .tile .v { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .tile .v { font-family: var(--display); font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
     .tile .v.big { font-size: 34px; }
     .tile .s { color: var(--dim); font-size: 13.5px; margin-top: 2px; }
     .v .u { font-size: 0.48em; font-weight: 600; color: var(--dim); margin-left: 5px; letter-spacing: 0; white-space: nowrap; }
@@ -61,7 +61,7 @@
     .alert { --c: var(--green); margin-top: 12px; display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: 14px;
       border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); background: linear-gradient(90deg, color-mix(in srgb, var(--c) 16%, transparent), transparent 70%); }
     .alert .ai { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; color: var(--c); background: color-mix(in srgb, var(--c) 18%, transparent); font-size: 20px; }
-    .alert .t { font-size: 21px; font-weight: 800; letter-spacing: -0.01em; color: var(--c); }
+    .alert .t { font-family: var(--display); font-size: 21px; font-weight: 700; letter-spacing: -0.01em; color: var(--c); }
     .alert .l { font-size: 15.5px; margin-top: 1px; }
     .alert .m { color: var(--dim); font-size: 13.5px; margin-top: 6px; }
     .alert.LOW_SOON, .alert.PRE_DRIVE { --c: var(--amber); }
@@ -73,7 +73,7 @@
     /* Your demo: the pairing code */
     .demo-card { margin-bottom: 18px; }
     .demo-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
-    .demo-code { font: 800 34px/1 var(--font); letter-spacing: 0.22em; color: var(--cyan); font-variant-numeric: tabular-nums;
+    .demo-code { font: 700 34px/1 var(--mono); letter-spacing: 0.22em; color: var(--cyan); font-variant-numeric: tabular-nums;
       padding: 8px 14px; border-radius: 12px; background: rgba(62,230,193,0.08); border: 1px dashed rgba(62,230,193,0.45); }
     .demo-code.shared { color: var(--dim); letter-spacing: 0.04em; font-size: 22px; border-color: var(--line-strong); background: none; }
     .demo-btns { display: flex; gap: 8px; flex-wrap: wrap; }

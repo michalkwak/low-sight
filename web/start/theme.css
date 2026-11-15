@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap");
+
 /* LowSight shared theme for the start page and the simulator.
    Colours carry meaning and match the glasses HUD: green = in range / normal, amber = warning,
    red = urgent, cyan = LowSight + recovery, violet = phone, blue = laptop. */
@@ -21,7 +23,9 @@
   --blue: #60a5fa;
   --radius: 16px;
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.03) inset;
-  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --display: "Space Grotesk", var(--font);
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
 }
 * { box-sizing: border-box; }
 html { background: var(--bg); }
@@ -35,20 +39,22 @@ body {
 a { color: var(--cyan); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code { font: 0.9em ui-monospace, SFMono-Regular, Consolas, monospace; background: rgba(148, 163, 184, 0.12); padding: 1px 6px; border-radius: 6px; }
+h1, h2, h3 { font-family: var(--display); letter-spacing: -0.015em; }
 :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
 /* Brand */
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand svg { width: 40px; height: 40px; flex: none; filter: drop-shadow(0 4px 14px rgba(200, 29, 58, 0.40)); }
-.brand .name { font-weight: 800; font-size: 22px; letter-spacing: -0.02em; }
+.brand .name { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; }
 .brand .name span { color: var(--cyan); }
 .gradient-text { background: linear-gradient(90deg, #fff, #c9f7ec 40%, var(--cyan)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
 /* Surfaces */
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); backdrop-filter: blur(8px); }
-.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+.eyebrow { font-family: var(--mono); font-size: 11.5px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
 
 /* Buttons */
+[hidden] { display: none !important; }
 .btn {
   display: inline-flex; align-items: center; gap: 10px; font: 600 15px/1.2 var(--font); color: var(--fg);
   padding: 11px 16px; border-radius: 12px; border: 1px solid var(--line-strong); background: rgba(255, 255, 255, 0.04);
